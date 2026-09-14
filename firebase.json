@@ -8,6 +8,62 @@
   // of this entry.
   "hosting": [
     {
+      // The donor-facing app, on the project's own default site. A different
+      // origin from the admin portal on purpose: this one is meant to be
+      // opened by anybody with a phone, and nothing it does should share
+      // cookies or storage with a console over the temple's records.
+      "site": "abss-dms",
+      "public": "app",
+      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+      "rewrites": [
+        {
+          "source": "/api/**",
+          "function": {
+            "functionId": "publicApi",
+            "region": "asia-southeast1"
+          }
+        },
+        // Every other path is the single page: /zh-Hant/c/vesak-2026 is a
+        // route this app reads, not a file on disk.
+        { "source": "**", "destination": "/index.html" }
+      ],
+      "headers": [
+        {
+          "source": "**",
+          "headers": [
+            {
+              // Tighter than the admin site's, because this one loads no SDK
+              // and signs nobody in: no external script at all.
+              //
+              // img-src carries the two Google Storage hosts because a
+              // campaign photo uploaded through the admin portal will be
+              // served from one of them. data: is there for the select
+              // chevron in app.css.
+              //
+              // frame-ancestors 'none': a donation form inside somebody
+              // else's frame is a donation form somebody else is collecting.
+              "key": "Content-Security-Policy",
+              "value": "default-src 'self'; script-src 'self'; connect-src 'self'; style-src 'self'; img-src 'self' data: https://firebasestorage.googleapis.com https://storage.googleapis.com; font-src 'self'; frame-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+            },
+            { "key": "X-Content-Type-Options", "value": "nosniff" },
+            { "key": "Referrer-Policy", "value": "no-referrer" }
+          ]
+        },
+        {
+          // The page and its code carry no cache, so a campaign that closes
+          // is not still being donated to from a stale tab.
+          "source": "**/*.@(html|js|css|json)",
+          "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+        },
+        {
+          // The QR and the favicon are the opposite: fixed bytes, and the one
+          // heavy thing a donor downloads.
+          "source": "**/*.@(png|svg|jpg|jpeg|webp)",
+          "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400" }]
+        }
+      ]
+    },
+    {
       "site": "abss-dms-admin",
       "public": "admin",
       "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
@@ -68,6 +124,10 @@
       ]
     }
   ],
+
+  "firestore": {
+    "rules": "firestore.rules"
+  },
 
   "functions": [
     {

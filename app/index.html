@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="zh-Hans">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>捐款 · ABSS</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/app.css" />
+  </head>
+  <body>
+    <!-- Every phrase on this page is written by app.js from i18n.js. The
+         markup carries data-i18n keys and no words of its own, so a string
+         that exists in only one language cannot hide in the HTML. -->
+
+    <header class="topbar">
+      <a class="brand" id="brand" href="/">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none"
+               stroke="currentColor" stroke-width="1.7"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 11.4c-.6-.5-3.1-2-3.1-3.8a1.8 1.8 0 0 1 3.1-1.2 1.8 1.8 0 0 1 3.1 1.2c0 1.8-2.5 3.3-3.1 3.8z"/>
+            <path d="M4.6 13.9h14.8a7.4 7.4 0 0 1-14.8 0z"/>
+          </svg>
+        </span>
+        <span class="brand-text">
+          <strong>ABSS</strong>
+          <span data-i18n="app.donations"></span>
+        </span>
+      </a>
+
+      <!-- Each label is in its own script rather than translated into the
+           current one: somebody who has landed in a language they cannot read
+           is looking for the writing they recognise. -->
+      <nav class="langs" id="langs" aria-label="Language"></nav>
+    </header>
+
+    <main class="wrap" id="main">
+      <p class="state" id="view-loading" role="status" data-i18n="app.loading"></p>
+
+      <div class="state state-error" id="view-error" hidden>
+        <p id="error-text"></p>
+        <button type="button" class="button-quiet" id="error-retry"
+                data-i18n="app.retry"></button>
+      </div>
+
+      <!-- ── The campaign list ───────────────────────────────────────── -->
+      <section class="view" id="view-list" hidden>
+        <h1 data-i18n="list.title"></h1>
+        <p class="lede" data-i18n="list.intro"></p>
+        <p class="empty" id="list-empty" data-i18n="list.empty" hidden></p>
+        <ul class="cards" id="cards"></ul>
+      </section>
+
+      <!-- ── The donation form ───────────────────────────────────────── -->
+      <section class="view" id="view-form" hidden>
+        <article class="campaign">
+          <img class="campaign-photo" id="campaign-photo" alt="" hidden />
+          <div class="campaign-body">
+            <h1 id="campaign-name"></h1>
+            <p class="campaign-desc" id="campaign-desc"></p>
+            <dl class="dates" id="campaign-dates"></dl>
+          </div>
+        </article>
+
+        <form class="form" id="form" novalidate>
+          <h2 data-i18n="form.title"></h2>
+
+          <label class="field">
+            <span class="label">
+              <span data-i18n="form.name"></span>
+              <em class="req" data-i18n="form.required"></em>
+            </span>
+            <input type="text" id="f-name" name="name" maxlength="80"
+                   autocomplete="name" required />
+            <span class="field-error" id="e-name" hidden></span>
+          </label>
+
+          <label class="field">
+            <span class="label">
+              <span data-i18n="form.phone"></span>
+              <em class="req" data-i18n="form.required"></em>
+            </span>
+            <input type="tel" id="f-phone" name="phone" inputmode="tel"
+                   autocomplete="tel" required />
+            <span class="field-error" id="e-phone" hidden></span>
+          </label>
+
+          <fieldset class="field">
+            <legend class="label">
+              <span data-i18n="form.contact"></span>
+              <em class="opt" data-i18n="form.contactOptional"></em>
+            </legend>
+            <div class="checks">
+              <label class="check">
+                <input type="checkbox" name="contact" value="whatsapp" />
+                <span data-i18n="form.whatsapp"></span>
+              </label>
+              <label class="check">
+                <input type="checkbox" name="contact" value="sms" />
+                <span data-i18n="form.sms"></span>
+              </label>
+              <label class="check">
+                <input type="checkbox" name="contact" value="call" />
+                <span data-i18n="form.call"></span>
+              </label>
+            </div>
+          </fieldset>
+
+          <label class="field">
+            <span class="label">
+              <span data-i18n="form.amount"></span>
+              <em class="req" data-i18n="form.required"></em>
+            </span>
+            <!-- Options are written from the campaign's own amounts, so a
+                 campaign that offers different sums needs no change here. -->
+            <select id="f-amount" name="amount" required></select>
+            <span class="field-error" id="e-amount" hidden></span>
+          </label>
+
+          <label class="field">
+            <span class="label">
+              <span data-i18n="form.wishes"></span>
+              <em class="opt" data-i18n="form.wishesOptional"></em>
+            </span>
+            <textarea id="f-wishes" name="wishes" rows="3" maxlength="100"></textarea>
+            <span class="counter" id="wishes-left" aria-live="polite"></span>
+            <span class="field-error" id="e-wishes" hidden></span>
+          </label>
+
+          <label class="field">
+            <span class="label">
+              <span data-i18n="form.payBy"></span>
+              <em class="req" data-i18n="form.required"></em>
+            </span>
+            <select id="f-payby" name="payBy" required>
+              <option value="" data-i18n="form.choose"></option>
+              <option value="paynow" data-i18n="form.paynow"></option>
+              <option value="cash" data-i18n="form.cash"></option>
+            </select>
+            <span class="field-error" id="e-payby" hidden></span>
+          </label>
+
+          <p class="form-error" id="form-error" role="alert" hidden></p>
+
+          <button type="submit" class="button" id="submit"
+                  data-i18n="form.submit"></button>
+        </form>
+      </section>
+
+      <!-- ── After submitting ────────────────────────────────────────── -->
+      <section class="view" id="view-done" hidden>
+        <div class="done">
+          <span class="done-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="30" height="30" fill="none"
+                 stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <path d="m5 12.5 4.5 4.5L19 7.5" />
+            </svg>
+          </span>
+          <h1 data-i18n="done.thanks"></h1>
+
+          <dl class="receipt">
+            <dt data-i18n="done.amount"></dt>
+            <dd id="done-amount"></dd>
+            <dt data-i18n="done.reference"></dt>
+            <dd><code class="reference" id="done-reference"></code></dd>
+          </dl>
+
+          <div id="done-paynow" hidden>
+            <h2 data-i18n="done.paynow.title"></h2>
+            <img class="qr" src="/paynow.png" alt="PayNow QR" width="648" height="676" />
+            <p class="note" data-i18n="done.paynow.reference"></p>
+            <p class="note" data-i18n="done.paynow.save"></p>
+          </div>
+
+          <div id="done-cash" hidden>
+            <h2 data-i18n="done.cash.title"></h2>
+            <p class="note" data-i18n="done.cash.body"></p>
+          </div>
+
+          <a class="button-quiet" id="done-home" href="/" data-i18n="done.home"></a>
+        </div>
+      </section>
+    </main>
+
+    <!-- Cloned rather than built from a string: campaign names and
+         descriptions are somebody else's text, and this app never turns text
+         into markup. -->
+    <template id="tpl-card">
+      <li class="card">
+        <a class="card-link">
+          <img class="card-photo" alt="" hidden />
+          <div class="card-body">
+            <h2 class="card-name"></h2>
+            <p class="card-desc"></p>
+            <p class="card-dates"></p>
+            <span class="card-go" data-i18n="list.donate"></span>
+          </div>
+        </a>
+      </li>
+    </template>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

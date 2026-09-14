@@ -1,0 +1,22 @@
+rules_version = '2';
+
+// Nothing reaches Firestore from a browser. Every read and write in this
+// project goes through a Cloud Function using the Admin SDK, which bypasses
+// these rules entirely, so denying everything here costs nothing and closes
+// the door the donation form would otherwise leave open.
+//
+// It matters most for `donations`: those carry a donor's name and phone
+// number. A public read rule on that collection — or a public create rule,
+// which is the shape a browser-writes-directly design needs — would put
+// somebody's contact details one query away from anyone who opened the site.
+//
+// `campaigns` is public content and could in principle be world-readable, but
+// it is served by the same function that serves everything else, so there is
+// no client that needs the rule.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
