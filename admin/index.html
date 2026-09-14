@@ -24,9 +24,9 @@
           <svg viewBox="0 0 24 24" width="28" height="28" fill="none"
                stroke="currentColor" stroke-width="1.7"
                stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="3.5" width="18" height="17" rx="2.5" />
-            <path d="M3 8.5h18" />
-            <path d="M10 8.5v12" />
+                    <rect x="3" y="3.5" width="18" height="17" rx="2.5" />
+                    <path d="M3 8.5h18" />
+                    <path d="M10 8.5v12" />
           </svg>
         </span>
         <h1 class="wordmark">
@@ -60,9 +60,9 @@
             <svg viewBox="0 0 24 24" width="22" height="22" fill="none"
                  stroke="currentColor" stroke-width="1.7"
                  stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="3.5" width="18" height="17" rx="2.5" />
-              <path d="M3 8.5h18" />
-              <path d="M10 8.5v12" />
+                    <rect x="3" y="3.5" width="18" height="17" rx="2.5" />
+                    <path d="M3 8.5h18" />
+                    <path d="M10 8.5v12" />
             </svg>
           </span>
           <span class="rail-name">
@@ -86,7 +86,7 @@
                  stroke="currentColor" stroke-width="2"
                  stroke-linecap="round" stroke-linejoin="round"
                  aria-hidden="true">
-              <path d="M15 5 8 12l7 7" />
+                    <path d="M15 5 8 12l7 7" />
             </svg>
           </button>
         </div>
@@ -94,26 +94,143 @@
         <!-- A nav with one item today. It is a list because the portal is meant
              to gain modules, and the second one should be an <li> rather than a
              rethink of the side menu. -->
+        <!-- Alphabetical by label, which is the only order that needs no
+             explaining to somebody looking for one of seven things. Each item
+             carries its own icon as inline SVG rather than an <img>: the CSP
+             allows img-src 'self' data: and nothing external, and building
+             these from a string in script is what this file does not do. -->
         <nav class="modules" aria-label="Modules">
           <ul>
             <li>
               <button
                 type="button"
                 class="module is-active"
-                data-module="layouts"
+                data-module="access-control"
                 aria-current="page"
+                title="Access Control"
+              >
+                <span class="module-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none"
+                       stroke="currentColor" stroke-width="1.7"
+                       stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 3.4 5.2 6v5c0 4 2.8 7.6 6.8 9 4-1.4 6.8-5 6.8-9V6z"/>
+                    <circle cx="12" cy="10.8" r="1.5"/>
+                    <path d="M12 12.3v2.3"/>
+                  </svg>
+                </span>
+                <span class="module-label">Access Control</span>
+              </button>
+            </li>
+            <li>
+              <button
+                type="button"
+                class="module"
+                data-module="broadcasts"
+                title="Broadcasts"
+              >
+                <span class="module-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none"
+                       stroke="currentColor" stroke-width="1.7"
+                       stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 9.6v4.8a1 1 0 0 0 1 1h2.3L14 19.6V4.4L7.3 8.6H5a1 1 0 0 0-1 1z"/>
+                    <path d="M17.4 9.1a4.2 4.2 0 0 1 0 5.8"/>
+                    <path d="M20 6.7a7.6 7.6 0 0 1 0 10.6"/>
+                  </svg>
+                </span>
+                <span class="module-label">Broadcasts</span>
+              </button>
+            </li>
+            <li>
+              <button
+                type="button"
+                class="module"
+                data-module="campaigns"
+                title="Campaigns"
+              >
+                <span class="module-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none"
+                       stroke="currentColor" stroke-width="1.7"
+                       stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M6.2 21V3.6"/>
+                    <path d="M6.2 4.4h11.2l-2.3 3.9 2.3 3.9H6.2z"/>
+                  </svg>
+                </span>
+                <span class="module-label">Campaigns</span>
+              </button>
+            </li>
+            <li>
+              <button
+                type="button"
+                class="module"
+                data-module="donations"
+                title="Donations"
+              >
+                <span class="module-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none"
+                       stroke="currentColor" stroke-width="1.7"
+                       stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 11.4c-.6-.5-3.1-2-3.1-3.8a1.8 1.8 0 0 1 3.1-1.2 1.8 1.8 0 0 1 3.1 1.2c0 1.8-2.5 3.3-3.1 3.8z"/>
+                    <path d="M4.6 13.9h14.8a7.4 7.4 0 0 1-14.8 0z"/>
+                  </svg>
+                </span>
+                <span class="module-label">Donations</span>
+              </button>
+            </li>
+            <li>
+              <button
+                type="button"
+                class="module"
+                data-module="donors"
+                title="Donors"
+              >
+                <span class="module-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none"
+                       stroke="currentColor" stroke-width="1.7"
+                       stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="8.4" r="3.2"/>
+                    <path d="M5.6 20a6.4 6.4 0 0 1 12.8 0"/>
+                  </svg>
+                </span>
+                <span class="module-label">Donors</span>
+              </button>
+            </li>
+            <li>
+              <button
+                type="button"
+                class="module"
+                data-module="layouts"
                 title="Layouts"
               >
                 <span class="module-icon" aria-hidden="true">
                   <svg viewBox="0 0 24 24" width="20" height="20" fill="none"
                        stroke="currentColor" stroke-width="1.7"
                        stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="3" y="4" width="18" height="16" rx="2" />
-                    <path d="M3 9h18" />
-                    <path d="M10 9v11" />
+                    <rect x="3" y="4" width="18" height="16" rx="2"/>
+                    <path d="M3 9h18"/>
+                    <path d="M10 9v11"/>
                   </svg>
                 </span>
                 <span class="module-label">Layouts</span>
+              </button>
+            </li>
+            <li>
+              <button
+                type="button"
+                class="module"
+                data-module="reports"
+                title="Reports"
+              >
+                <span class="module-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none"
+                       stroke="currentColor" stroke-width="1.7"
+                       stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4.2 3.8v16h15.6"/>
+                    <path d="M8.4 16.4v-3.9"/>
+                    <path d="M12.9 16.4V8.2"/>
+                    <path d="M17.4 16.4v-6.2"/>
+                  </svg>
+                </span>
+                <span class="module-label">Reports</span>
               </button>
             </li>
           </ul>
@@ -136,9 +253,9 @@
                  stroke="currentColor" stroke-width="1.8"
                  stroke-linecap="round" stroke-linejoin="round"
                  aria-hidden="true">
-              <path d="M15 17v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v2" />
-              <path d="M19 12H9" />
-              <path d="m16 9 3 3-3 3" />
+                    <path d="M15 17v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v2" />
+                    <path d="M19 12H9" />
+                    <path d="m16 9 3 3-3 3" />
             </svg>
           </button>
         </div>
@@ -147,11 +264,75 @@
       <!-- ── The module ────────────────────────────────────────────────── -->
       <main class="content">
         <header class="content-head">
-          <h1 id="page-title">Layouts</h1>
+          <!-- Written by the router from the active item's own label, so the
+               heading and the menu cannot disagree about what this page is. -->
+          <h1 id="page-title">Access Control</h1>
         </header>
 
-        <!-- Empty on purpose: the module has no content yet. -->
-        <section class="page" id="page-layouts" aria-labelledby="page-title">
+        <!-- All seven in the document from the start and switched by [hidden].
+             They are empty, so there is nothing to be gained by building them
+             on demand, and a page that exists is a page the router cannot fail
+             to find. -->
+        <section
+          class="page"
+          id="page-access-control"
+          data-page="access-control"
+          aria-labelledby="page-title"
+        >
+          <p class="page-empty">Nothing here yet.</p>
+        </section>
+
+        <section
+          class="page"
+          id="page-broadcasts"
+          data-page="broadcasts"
+          aria-labelledby="page-title" hidden
+        >
+          <p class="page-empty">Nothing here yet.</p>
+        </section>
+
+        <section
+          class="page"
+          id="page-campaigns"
+          data-page="campaigns"
+          aria-labelledby="page-title" hidden
+        >
+          <p class="page-empty">Nothing here yet.</p>
+        </section>
+
+        <section
+          class="page"
+          id="page-donations"
+          data-page="donations"
+          aria-labelledby="page-title" hidden
+        >
+          <p class="page-empty">Nothing here yet.</p>
+        </section>
+
+        <section
+          class="page"
+          id="page-donors"
+          data-page="donors"
+          aria-labelledby="page-title" hidden
+        >
+          <p class="page-empty">Nothing here yet.</p>
+        </section>
+
+        <section
+          class="page"
+          id="page-layouts"
+          data-page="layouts"
+          aria-labelledby="page-title" hidden
+        >
+          <p class="page-empty">Nothing here yet.</p>
+        </section>
+
+        <section
+          class="page"
+          id="page-reports"
+          data-page="reports"
+          aria-labelledby="page-title" hidden
+        >
           <p class="page-empty">Nothing here yet.</p>
         </section>
       </main>

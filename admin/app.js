@@ -1,8 +1,9 @@
 /*
  * The admin portal's client half.
  *
- * No framework and no bundler: this is a side menu and one page, and a build
- * step would be more machinery than the thing it builds. An ES module rather
+ * No framework and no bundler: this is a side menu, seven empty pages and a
+ * router that swaps [hidden] between them, and a build step would be more
+ * machinery than the thing it builds. An ES module rather
  * than an IIFE, because the Firebase Auth SDK is loaded with a dynamic
  * import() — and only when it is actually needed.
  *
@@ -246,6 +247,71 @@ async function start(email) {
 
   el("gate").hidden = true;
   el("app").hidden = false;
+
+  // After the portal is on screen, because until then the menu is inside a
+  // hidden subtree and the heading it writes would not be read out.
+  showModule(moduleFromHash() || "");
+}
+
+/* ── Which module is open ───────────────────────────────────────────────── */
+
+/**
+ * Shows one module and hides the rest.
+ *
+ * The label in the menu is the only place a module's name is written: the
+ * heading is copied from it rather than kept in a table here, so the two
+ * cannot drift. An unknown key falls back to the first item rather than
+ * leaving the reader on a blank frame — a stale bookmark is the ordinary way
+ * to arrive with one.
+ *
+ * @param {string} key - A data-module value.
+ * @param {boolean} [remember] - Whether to put it in the address bar.
+ */
+function showModule(key, remember = true) {
+  const buttons = [...document.querySelectorAll(".module")];
+  const matched = buttons.find((button) => button.dataset.module === key);
+  const chosen = matched || buttons[0];
+  const open = chosen.dataset.module;
+
+  for (const button of buttons) {
+    const isOpen = button === chosen;
+    button.classList.toggle("is-active", isOpen);
+    // Removed rather than set to "false": aria-current has no falsy value that
+    // means "not the current page", and every other string is treated as one.
+    if (isOpen) {
+      button.setAttribute("aria-current", "page");
+    } else {
+      button.removeAttribute("aria-current");
+    }
+  }
+
+  for (const page of document.querySelectorAll(".page")) {
+    page.hidden = page.dataset.page !== open;
+  }
+
+  el("page-title").textContent =
+    chosen.querySelector(".module-label").textContent.trim();
+  // Short form here, unlike the document's own <title>: this is a browser tab,
+  // and the module is the part worth reading when six of them are open.
+  document.title = `${el("page-title").textContent} — ABSS DMS`;
+
+  // Corrected even when the caller said not to remember, if the key asked for
+  // was not a module: that is the stale-bookmark case, and leaving the address
+  // bar naming a page that is not the one on screen is worse than rewriting it.
+  if ((remember || !matched) && moduleFromHash() !== open) {
+    // replaceState rather than assigning location.hash: the menu is not a
+    // history stack, and a reader who clicked through four modules should not
+    // have to press Back four times to leave the portal.
+    history.replaceState(null, "", `#/${open}`);
+  }
+}
+
+/**
+ * @returns {string|null} The module named in the address bar, if any.
+ */
+function moduleFromHash() {
+  const match = /^#\/([a-z-]+)$/.exec(location.hash);
+  return match ? match[1] : null;
 }
 
 /* ── The side menu ──────────────────────────────────────────────────────── */
@@ -295,6 +361,22 @@ function restoreRail() {
 }
 
 /* ── Wiring ─────────────────────────────────────────────────────────────── */
+
+// One listener on the list rather than one per item: the modules are markup,
+// and a handler bound per button would be a second place to remember to touch
+// when the eighth is added.
+document.querySelector(".modules").addEventListener("click", (event) => {
+  const button = event.target.closest(".module");
+  if (button) {
+    showModule(button.dataset.module);
+  }
+});
+
+// The address bar is part of the interface: Back, Forward and a pasted link
+// all arrive here.
+window.addEventListener("hashchange", () => {
+  showModule(moduleFromHash() || "", false);
+});
 
 el("rail-toggle").addEventListener("click", () => {
   const collapsed = !el("rail").classList.contains("is-collapsed");

@@ -236,14 +236,62 @@ overlays the page rather than sitting beside it, and expanded above.
 
 ---
 
-## Adding the second module
+## The modules
 
-1. An `<li>` in the `.modules` list in `index.html`, with an inline SVG icon and
-   a label. The icon must be inline: the CSP allows `img-src 'self' data:` and
-   nothing external.
-2. A `<section class="page">` for it.
-3. Routing. There is none today — one module needs no router, and writing one
-   for a single page would be guessing at what the second needs.
+Seven, all empty:
 
-Anything that reads or writes real data also needs a route in `functions/admin.js`,
-behind the same `authorize()` the gate uses.
+**Access Control**, **Broadcasts**, **Campaigns**, **Donations**, **Donors**,
+**Layouts**, **Reports**.
+
+Alphabetical by the label a reader sees — the only order that needs no
+explaining to somebody looking for one of seven things. The generator that
+writes the markup sorts on the label rather than the `data-module` key, because
+those agree today and stop agreeing the first time a key abbreviates its label.
+
+With no fragment in the address, the portal opens on the first item, Access
+Control. That is "the top of the menu" rather than a considered landing page;
+when one of these earns being the place people start, it is one line in
+`showModule()`.
+
+## The router
+
+`#/donors` in the address bar, which means a module survives a reload, can be
+linked to, and answers Back and Forward.
+
+Three things about it worth knowing before changing it:
+
+**The label is the only place a module's name is written.** The heading is
+copied out of the active item, so the menu and the heading cannot disagree.
+
+**`history.replaceState`, not `location.hash =`.** The menu is not a history
+stack: someone who clicked through four modules should not press Back four
+times to leave the portal.
+
+**An unknown key falls back to the first module and rewrites the address bar
+to match.** A stale bookmark is the ordinary way to arrive with one, and the
+alternatives are both worse — a blank frame, or an address that names a page
+other than the one on screen.
+
+`aria-current` is removed from the inactive items rather than set to `"false"`.
+The attribute has no falsy value; every string it accepts, that one included,
+means "this is the current page".
+
+## Adding the eighth module
+
+1. An `<li>` in the `.modules` list in `index.html`, in alphabetical position,
+   with a `data-module` key and an inline SVG icon. The icon must be inline:
+   the CSP allows `img-src 'self' data:` and nothing external, and nothing in
+   `app.js` builds markup from a string.
+2. A `<section class="page" data-page="...">` whose `data-page` matches the
+   key. Add it `hidden`; the router clears that on the one it opens.
+3. Nothing in `app.js`. The router reads the DOM, and the click handler is one
+   listener on the list rather than one per item, so an eighth button is not a
+   second place to remember.
+
+Icons are drawn on a 24×24 viewBox at `stroke-width` 1.7 to match the rest.
+Check a new one at 20px rather than on the artboard — the first Donations glyph
+was a heart over an arc that read perfectly at 200px and looked like an
+underline in the rail.
+
+Anything that reads or writes real data also needs a route in
+`functions/admin.js`, behind the same `authorize()` the gate uses.
