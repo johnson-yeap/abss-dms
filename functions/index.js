@@ -88,7 +88,11 @@ async function authorizeAdmin(req) {
   return { ok: true, email };
 }
 
-const adminApiHandler = createAdminApi({ authorize: authorizeAdmin });
+const adminApiHandler = createAdminApi({
+  authorize: authorizeAdmin,
+  getDb: () => admin.firestore(),
+  getTimestamp: () => admin.firestore.Timestamp,
+});
 
 /**
  * The admin portal's API.
@@ -97,7 +101,8 @@ const adminApiHandler = createAdminApi({ authorize: authorizeAdmin });
  * lets the page's Content-Security-Policy keep connect-src at 'self'. It is
  * reachable at its own cloudfunctions.net address too, and that is not a hole:
  * every request carries its own credential and is checked here rather than by
- * where it arrived from.
+ * where it arrived from. That last sentence is what the writes rest on — a
+ * POST to /layouts is refused at the same authorizeAdmin() the reads are.
  *
  * @param {Object} req - The HTTP request object.
  * @param {Object} res - The HTTP response object.

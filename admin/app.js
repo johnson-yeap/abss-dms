@@ -31,29 +31,42 @@ const state = {
 /* ── Talking to the API ─────────────────────────────────────────────────── */
 
 /**
- * One GET against the admin API, with the caller's identity attached.
+ * One call against the admin API, with the caller's identity attached.
  *
  * The token is fetched per request rather than held, because the SDK refreshes
  * it in the background and a copy kept here would be the stale one an hour into
  * a session.
  *
+ * A refusal is thrown rather than returned, and it carries what the caller
+ * needs to say why: the status, the account for a 403, and the field/code
+ * pairs for a 400 — which are codes rather than sentences, so the wording of
+ * a refusal stays in the page beside the box that caused it.
+ *
  * @param {string} path - Below /api/admin.
+ * @param {Object} [options] - {method, body}.
  * @returns {Promise<Object>} The parsed payload.
  */
-async function api(path) {
+async function api(path, options = {}) {
   const headers = {};
   const token = await state.token();
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const response = await fetch(`/api/admin${path}`, { headers });
+  const init = { method: options.method || "GET", headers };
+  if (options.body !== undefined) {
+    headers["Content-Type"] = "application/json";
+    init.body = JSON.stringify(options.body);
+  }
+
+  const response = await fetch(`/api/admin${path}`, init);
   const payload = await response.json().catch(() => ({}));
 
   if (!response.ok) {
     const error = new Error(payload.error || `HTTP ${response.status}`);
     error.status = response.status;
     error.email = payload.email || null;
+    error.fields = payload.fields || [];
     throw error;
   }
   return payload;
@@ -291,6 +304,14 @@ function showModule(key, remember = true) {
 
   el("page-title").textContent =
     chosen.querySelector(".module-label").textContent.trim();
+
+  // The one thing a module gets told. Adding an eighth is still markup alone —
+  // this fires for every module and only the ones that have asked to hear it
+  // do anything, rather than the router holding a table of pages it knows are
+  // special.
+  if (open === "layouts") {
+    openLayouts();
+  }
   // Short form here, unlike the document's own <title>: this is a browser tab,
   // and the module is the part worth reading when six of them are open.
   document.title = `${el("page-title").textContent} — ABSS DMS`;
@@ -360,6 +381,495 @@ function restoreRail() {
   setRail(stored === null ? narrow : stored === "collapsed");
 }
 
+/* ── Layouts ────────────────────────────────────────────────────────────── */
+
+// The two allotments, worded. The server stores the key; every place a reader
+// sees one of these words, it comes from here.
+const ALLOTMENTS = {
+  cell: { name: "Cell", plural: "Cells" },
+  node: { name: "Intersection node", plural: "Nodes" },
+};
+
+// How many marks a drawing will place before it gives up and draws the lines
+// alone. A hundred by a hundred is ten thousand rects in a thumbnail 132px
+// tall, which is a second of layout for a picture in which no single cell is
+// visible anyway. The lines still show the shape, which is all a card is for.
+const MARK_LIMIT = 2400;
+
+// Beyond this the letters and numbers around a preview are too small to read
+// at the size the box gives them, so they are left off rather than drawn as
+// grey fuzz.
+const LABEL_LIMIT = 26;
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+// One grid square, in the drawing's own units. Everything else is a multiple
+// or a fraction of it, and the viewBox is what turns the result into pixels —
+// so a 4 × 18 wall and a 12 × 10 hall are drawn by the same code at the same
+// weight and scaled to fit whatever box they are put in.
+const STEP = 10;
+
+const layouts = {
+  // Loaded on the first visit and kept, so returning to the module from
+  // another one is not a round trip. A create or a status change updates this
+  // in place from what the server answered with, rather than re-fetching.
+  items: null,
+  loading: false,
+};
+
+/**
+ * @param {string} name - An SVG element's name.
+ * @param {Object} attributes - What to set on it.
+ * @returns {Element} The element.
+ */
+function svg(name, attributes = {}) {
+  const node = document.createElementNS(SVG_NS, name);
+  for (const [key, value] of Object.entries(attributes)) {
+    node.setAttribute(key, String(value));
+  }
+  return node;
+}
+
+/**
+ * Draws a layout's grid.
+ *
+ * This is the "snapshot" on a card and the preview in the form — one drawing
+ * routine for both, because they are pictures of the same thing and a card
+ * that disagreed with the form that made it would be worse than either.
+ *
+ * Nothing is stored. A layout is its rows, its columns and its allotment, and
+ * the picture is derived from those every time it is wanted: a saved image
+ * would be a copy that goes stale the first time a layout is edited, and it
+ * would cost a Storage bucket and a hole in the CSP to keep.
+ *
+ * The two allotments are drawn as what they are — cells as the spaces the
+ * lines enclose, nodes as points on the crossings — so the thumbnail says
+ * which one a layout uses without reading the card.
+ *
+ * @param {Object} layout - {rows, columns, allottedBy}.
+ * @param {Object} [options] - {labels} to draw the row and column addresses.
+ * @returns {Element} An <svg>.
+ */
+function drawGrid(layout, options = {}) {
+  const rows = Math.max(0, layout.rows || 0);
+  const columns = Math.max(0, layout.columns || 0);
+  const byNode = layout.allottedBy === "node";
+
+  const width = columns * STEP;
+  const height = rows * STEP;
+  // Room for the dots that sit on the outer lines, which would otherwise be
+  // half cut off by the edge of the viewBox.
+  const edge = byNode ? 3 : 0.6;
+  const labels = Boolean(options.labels) &&
+    rows <= LABEL_LIMIT && columns <= LABEL_LIMIT;
+  const gutter = labels ? 13 : 0;
+
+  // A viewBox and no width or height. The drawing is then sized entirely by
+  // the box it is put in — max-width and max-height in the stylesheet — and a
+  // 4 × 18 wall and a 12 × 10 hall come out as two thumbnails of the same
+  // height in a row of cards that line up. An SVG carrying its own width is an
+  // SVG that decides how tall a card is.
+  const frame = svg("svg", {
+    viewBox: [
+      -(edge + gutter),
+      -(edge + gutter),
+      width + gutter + edge * 2,
+      height + gutter + edge * 2,
+    ].join(" "),
+    preserveAspectRatio: "xMidYMid meet",
+    fill: "none",
+  });
+  if (!rows || !columns) {
+    return frame;
+  }
+
+  const marks = byNode ? (rows + 1) * (columns + 1) : rows * columns;
+
+  // Cells first, so the lines are drawn over their fill rather than under it.
+  if (!byNode && marks <= MARK_LIMIT) {
+    for (let r = 0; r < rows; r += 1) {
+      for (let c = 0; c < columns; c += 1) {
+        frame.appendChild(svg("rect", {
+          class: "grid-cell",
+          x: c * STEP + 1,
+          y: r * STEP + 1,
+          width: STEP - 2,
+          height: STEP - 2,
+          rx: 1.2,
+        }));
+      }
+    }
+  }
+
+  for (let r = 0; r <= rows; r += 1) {
+    frame.appendChild(svg("line", {
+      class: "grid-line", x1: 0, y1: r * STEP, x2: width, y2: r * STEP,
+    }));
+  }
+  for (let c = 0; c <= columns; c += 1) {
+    frame.appendChild(svg("line", {
+      class: "grid-line", x1: c * STEP, y1: 0, x2: c * STEP, y2: height,
+    }));
+  }
+
+  if (byNode && marks <= MARK_LIMIT) {
+    for (let r = 0; r <= rows; r += 1) {
+      for (let c = 0; c <= columns; c += 1) {
+        frame.appendChild(svg("circle", {
+          class: "grid-node", cx: c * STEP, cy: r * STEP, r: 2.2,
+        }));
+      }
+    }
+  }
+
+  if (labels) {
+    // The addresses sit where the things they name are: against the lines when
+    // a layout allots by node, and against the middles of the cells when it
+    // allots by cell. This is the picture of the temple's own plan, which is
+    // lettered down the side and numbered across the top.
+    const count = byNode ? 1 : 0;
+    const offset = byNode ? 0 : STEP / 2;
+
+    for (let r = 0; r < rows + count; r += 1) {
+      const label = svg("text", {
+        class: "grid-label", x: -gutter / 2, y: r * STEP + offset,
+      });
+      label.textContent = rowLabel(r);
+      frame.appendChild(label);
+    }
+    for (let c = 0; c < columns + count; c += 1) {
+      const label = svg("text", {
+        class: "grid-label", x: c * STEP + offset, y: -gutter / 2,
+      });
+      label.textContent = String(c + 1);
+      frame.appendChild(label);
+    }
+  }
+
+  return frame;
+}
+
+/**
+ * The letter a row is addressed by: A, B ... Z, AA, AB.
+ *
+ * The same rule as rowLabel() in functions/layout.js, and the duplication is
+ * on purpose — the alternative is the page importing from the functions
+ * directory, which would tie what the portal can draw to what is deployed
+ * beside it. layout.test.cjs is where the rule is pinned down.
+ *
+ * @param {number} index - Zero-based row number.
+ * @returns {string} Its label.
+ */
+function rowLabel(index) {
+  let label = "";
+  let n = index;
+  while (n >= 0) {
+    label = String.fromCharCode(65 + (n % 26)) + label;
+    n = Math.floor(n / 26) - 1;
+  }
+  return label;
+}
+
+/**
+ * Opens the module, loading the layouts the first time it is looked at.
+ *
+ * @returns {Promise<void>} When the cards or the reason there are none is up.
+ */
+async function openLayouts() {
+  if (layouts.items || layouts.loading) {
+    return;
+  }
+  layouts.loading = true;
+  el("layouts-note").textContent = "Loading…";
+
+  try {
+    const payload = await api("/layouts");
+    layouts.items = payload.layouts || [];
+    drawLayouts();
+  } catch (error) {
+    // The module stays empty and says so. It is not the gate's business — the
+    // reader is already signed in and past the allowlist — so this is a
+    // failure of one request, and reopening the module retries it.
+    el("layouts-note").textContent =
+      "Could not load the layouts. Reopen the module to try again.";
+  } finally {
+    layouts.loading = false;
+  }
+}
+
+/**
+ * Draws every card, and the line above them.
+ *
+ * @returns {void}
+ */
+function drawLayouts() {
+  const cards = el("layouts-cards");
+  cards.replaceChildren();
+
+  const items = layouts.items || [];
+  for (const layout of items) {
+    cards.appendChild(layoutCard(layout));
+  }
+
+  const active = items.filter((one) => one.active).length;
+  el("layouts-note").textContent = items.length
+    ? `${items.length} layout${items.length === 1 ? "" : "s"}, ` +
+      `${active} active`
+    : "";
+  el("layouts-empty").hidden = items.length > 0;
+}
+
+/**
+ * One card.
+ *
+ * Cloned from the template in index.html and filled in through textContent.
+ * The only thing inserted as elements is the drawing, which is built node by
+ * node — a layout's name is typed by a person, and this is the file that must
+ * never hand one to a parser.
+ *
+ * @param {Object} layout - As the API answers with.
+ * @returns {Element} The card.
+ */
+function layoutCard(layout) {
+  const card = el("tpl-layout-card").content.firstElementChild.cloneNode(true);
+  const find = (selector) => card.querySelector(selector);
+
+  card.dataset.layout = layout.id;
+  find(".card-snapshot").appendChild(drawGrid(layout));
+  find(".card-name").textContent = layout.name;
+
+  // Building, floor and location are optional, and a card for a temple with
+  // one hall should read "Main Hall" rather than "— · Floor — · Main Hall".
+  // Only what was filled in is shown; a layout with none of the three says so
+  // once, which is also the prompt to go and fill them in.
+  const place = [
+    layout.building,
+    layout.floor ? `Floor ${layout.floor}` : "",
+    layout.location,
+  ].filter(Boolean);
+  find(".card-place").textContent = place.length
+    ? place.join(" · ")
+    : "No building, floor or location recorded";
+
+  const allotment = ALLOTMENTS[layout.allottedBy] || ALLOTMENTS.cell;
+  find(".card-grid").textContent = `${layout.rows} × ${layout.columns}`;
+  find(".card-allotment").textContent = allotment.name;
+  find(".card-units-label").textContent = allotment.plural;
+  find(".card-units").textContent = layout.units.toLocaleString();
+
+  const status = find(".status");
+  status.classList.toggle("is-active", layout.active);
+  find(".status-text").textContent = layout.active ? "Active" : "Inactive";
+
+  const toggle = find(".card-toggle");
+  toggle.textContent = layout.active ? "Deactivate" : "Activate";
+  // The visible label is one word, which is enough beside the status it sits
+  // next to and not enough on a list of twelve buttons read out in sequence.
+  toggle.setAttribute(
+    "aria-label",
+    `${layout.active ? "Deactivate" : "Activate"} ${layout.name}`
+  );
+  return card;
+}
+
+/**
+ * Switches one layout on or off.
+ *
+ * The card is redrawn from what the server answered with rather than from
+ * what was asked for: if the write did not happen, nothing on screen should
+ * say it did.
+ *
+ * @param {string} id - Which layout.
+ * @param {Element} button - The button pressed, disabled while it is in flight.
+ * @returns {Promise<void>} When the card is redrawn.
+ */
+async function toggleLayout(id, button) {
+  const current = (layouts.items || []).find((one) => one.id === id);
+  if (!current) {
+    return;
+  }
+
+  button.disabled = true;
+  try {
+    const payload = await api(`/layouts/${id}`, {
+      method: "PATCH",
+      body: { active: !current.active },
+    });
+    layouts.items = layouts.items.map((one) =>
+      one.id === id ? payload.layout : one);
+    drawLayouts();
+  } catch (error) {
+    button.disabled = false;
+    el("layouts-note").textContent =
+      `Could not change ${current.name}. Try again.`;
+  }
+}
+
+/* ── Creating one ───────────────────────────────────────────────────────── */
+
+/**
+ * @returns {Object} What the form currently says, unvalidated.
+ */
+function formValues() {
+  const chosen = document.querySelector("input[name=allottedBy]:checked");
+  return {
+    name: el("layout-name").value.trim(),
+    building: el("layout-building").value.trim(),
+    floor: el("layout-floor").value.trim(),
+    location: el("layout-location").value.trim(),
+    rows: Number(el("layout-rows").value),
+    columns: Number(el("layout-columns").value),
+    allottedBy: chosen ? chosen.value : "cell",
+  };
+}
+
+/**
+ * Redraws the grid and the two counts under the form.
+ *
+ * Both counts are shown whichever allotment is chosen, because the point of
+ * showing them is the comparison — 8 × 5 is 40 of one and 54 of the other,
+ * and that difference is the whole reason the choice exists. The one being
+ * allotted by is the one drawn in the accent.
+ *
+ * @returns {void}
+ */
+function refreshPreview() {
+  const values = formValues();
+  const rows = Number.isInteger(values.rows) ? values.rows : 0;
+  const columns = Number.isInteger(values.columns) ? values.columns : 0;
+  const drawable = rows > 0 && columns > 0;
+
+  el("layout-preview").replaceChildren(
+    drawGrid({ rows, columns, allottedBy: values.allottedBy }, { labels: true })
+  );
+  // A box with nothing in it does not say whether it is waiting for a number
+  // or has failed to draw one.
+  el("layout-preview-hint").hidden = drawable;
+
+  // Rows and columns are the spaces between the lines, so a grid of 4 rows is
+  // drawn with 5 row lines and allots by 5 of them when it allots by node.
+  // That is the one thing here somebody can get wrong without noticing — a
+  // wall of 4 rails is 3 rows, not 4 — so the addresses the grid produces are
+  // named outright rather than left to be counted off the drawing.
+  const note = el("layout-grid-note");
+  note.hidden = !drawable;
+  if (drawable) {
+    const lastRow = rowLabel(values.allottedBy === "node" ? rows : rows - 1);
+    const lastColumn = values.allottedBy === "node" ? columns + 1 : columns;
+    note.textContent =
+      `Addresses run A1 to ${lastRow}${lastColumn} — ` +
+      `${lastRow === "A" ? "one row" : `rows A to ${lastRow}`}, ` +
+      `${lastColumn === 1 ? "one column" : `columns 1 to ${lastColumn}`}.`;
+  }
+
+  el("layout-count-cells").textContent =
+    drawable ? (rows * columns).toLocaleString() : "—";
+  el("layout-count-nodes").textContent =
+    drawable ? ((rows + 1) * (columns + 1)).toLocaleString() : "—";
+
+  for (const count of document.querySelectorAll(".count")) {
+    count.classList.toggle("is-chosen", count.dataset.count === values.allottedBy);
+  }
+}
+
+/**
+ * @param {Object} field - {field, code} from the API.
+ * @returns {string} What to say about it.
+ */
+function refusal(field) {
+  if (field.code === "too-long") {
+    return "That is too long.";
+  }
+  if (field.code === "out-of-range") {
+    return "Rows and columns are each between 1 and 100.";
+  }
+  return field.field === "allottedBy"
+    ? "Choose how this layout is allotted."
+    : "This is needed.";
+}
+
+/**
+ * Marks the boxes the server refused.
+ *
+ * Server-side, not the browser's own required attributes, because the server
+ * is the half that decides — the markup's min and max are a convenience and
+ * anything that reached the API without them is what this has to explain.
+ *
+ * @param {Array} fields - {field, code} pairs, or none to clear.
+ * @returns {void}
+ */
+function showRefusals(fields = []) {
+  for (const field of document.querySelectorAll(".field")) {
+    field.classList.remove("is-wrong");
+  }
+  el("layout-name-error").hidden = true;
+  el("layout-grid-error").hidden = true;
+
+  for (const item of fields) {
+    const input = el(`layout-${item.field === "allottedBy" ? "rows" : item.field}`);
+    if (input && input.closest(".field")) {
+      input.closest(".field").classList.add("is-wrong");
+    }
+    const message = item.field === "name"
+      ? el("layout-name-error")
+      : el("layout-grid-error");
+    message.textContent = refusal(item);
+    message.hidden = false;
+  }
+}
+
+/**
+ * Opens the form, empty.
+ *
+ * Rows and columns start blank rather than at some plausible default. A
+ * default is a number somebody can leave in by accident, and a layout is not
+ * a thing you want created at a size nobody chose.
+ *
+ * @returns {void}
+ */
+function openLayoutForm() {
+  el("layout-fields").reset();
+  showRefusals();
+  el("layout-error").hidden = true;
+  el("layout-submit").disabled = false;
+  refreshPreview();
+  el("layout-form").showModal();
+  el("layout-name").focus();
+}
+
+/**
+ * Sends the form, and on success puts the new layout at the top of the list.
+ *
+ * The card is built from what came back rather than from what was typed, so
+ * what is on screen after a create is what is in the database.
+ *
+ * @returns {Promise<void>} When the form has closed or said why it has not.
+ */
+async function submitLayout() {
+  const submit = el("layout-submit");
+  submit.disabled = true;
+  showRefusals();
+  el("layout-error").hidden = true;
+
+  try {
+    const payload = await api("/layouts", {
+      method: "POST",
+      body: formValues(),
+    });
+    layouts.items = [payload.layout, ...(layouts.items || [])];
+    drawLayouts();
+    el("layout-form").close();
+  } catch (error) {
+    submit.disabled = false;
+    if (error.status === 400 && error.fields.length) {
+      showRefusals(error.fields);
+      return;
+    }
+    el("layout-error").textContent = "Could not save this layout. Try again.";
+    el("layout-error").hidden = false;
+  }
+}
+
 /* ── Wiring ─────────────────────────────────────────────────────────────── */
 
 // One listener on the list rather than one per item: the modules are markup,
@@ -422,6 +932,36 @@ el("signout").addEventListener("click", async () => {
   // onUser() fires with null and shows the gate. In the harness, where there is
   // no SDK, do it here.
   showGate(null);
+});
+
+// One listener for every card's button, on the container they are drawn into:
+// the cards are replaced wholesale on every change, and handlers bound per
+// card would be handlers bound again on every redraw.
+el("layouts-cards").addEventListener("click", (event) => {
+  const button = event.target.closest(".card-toggle");
+  if (button) {
+    toggleLayout(button.closest(".card").dataset.layout, button);
+  }
+});
+
+el("layout-new").addEventListener("click", openLayoutForm);
+
+for (const id of ["layout-cancel", "layout-cancel-2"]) {
+  el(id).addEventListener("click", () => el("layout-form").close());
+}
+
+// input covers typing and the number spinners; change covers the radios and a
+// paste that arrives as neither.
+for (const event of ["input", "change"]) {
+  el("layout-fields").addEventListener(event, refreshPreview);
+}
+
+el("layout-fields").addEventListener("submit", (event) => {
+  // The dialog would close itself on submit — method="dialog" — and take the
+  // form with it before the request had been answered. The close happens in
+  // submitLayout(), once there is something to close on.
+  event.preventDefault();
+  submitLayout();
 });
 
 boot();

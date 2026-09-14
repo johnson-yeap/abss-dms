@@ -15,7 +15,7 @@ Run either locally, no Firebase project needed:
 ```
 node tools/serve-app.cjs      # the donor app, http://localhost:5065
 node tools/serve.cjs          # the admin portal, http://localhost:5055
-cd functions && npm test      # 70 checks
+cd functions && npm test      # 111 checks
 ```
 
 The donor app's harness runs the real API over an in-memory database, so the

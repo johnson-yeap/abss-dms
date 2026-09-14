@@ -318,13 +318,37 @@
           <p class="page-empty">Nothing here yet.</p>
         </section>
 
+        <!-- The first module with anything in it. Everything below the
+             toolbar is written by app.js from templates at the foot of this
+             file — nothing in the portal builds markup out of a string. -->
         <section
-          class="page"
+          class="page page-wide"
           id="page-layouts"
           data-page="layouts"
           aria-labelledby="page-title" hidden
         >
-          <p class="page-empty">Nothing here yet.</p>
+          <div class="toolbar">
+            <p class="toolbar-note" id="layouts-note" role="status"></p>
+            <button type="button" class="button button-primary" id="layout-new">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
+                   stroke="currentColor" stroke-width="2"
+                   stroke-linecap="round" aria-hidden="true">
+                <path d="M12 5v14" />
+                <path d="M5 12h14" />
+              </svg>
+              Create
+            </button>
+          </div>
+
+          <!-- Three columns where there is room, and the cards carry their own
+               minimum width so the count falls to two and then one on its own
+               rather than at breakpoints written here. -->
+          <div class="cards" id="layouts-cards"></div>
+
+          <p class="page-empty" id="layouts-empty" hidden>
+            No layouts yet. Create one to describe a space — a wall of lanterns,
+            a hall of seats — that campaigns can then allot to donors.
+          </p>
         </section>
 
         <section
@@ -337,6 +361,176 @@
         </section>
       </main>
     </div>
+
+    <!-- ── Creating one ───────────────────────────────────────────────────
+         A native <dialog>, so Escape closes it, the focus is trapped while it
+         is open and the page behind it is inert — three things that would
+         otherwise be three pieces of script to get wrong. It sits outside
+         .app rather than inside the layouts page because a dialog in a
+         [hidden] subtree is a dialog with a display:none ancestor, and
+         showModal() on one of those opens nothing. -->
+    <dialog class="sheet" id="layout-form" aria-labelledby="layout-form-title">
+      <form method="dialog" id="layout-fields">
+        <header class="sheet-head">
+          <h2 id="layout-form-title">New layout</h2>
+          <button type="button" class="sheet-close" id="layout-cancel"
+                  aria-label="Cancel" title="Cancel">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none"
+                 stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" aria-hidden="true">
+              <path d="m6 6 12 12" />
+              <path d="M18 6 6 18" />
+            </svg>
+          </button>
+        </header>
+
+        <div class="sheet-body">
+          <div class="field">
+            <label for="layout-name">Name</label>
+            <input type="text" id="layout-name" name="name" maxlength="80"
+                   autocomplete="off" placeholder="Lantern Table — 600×600"
+                   required />
+            <p class="field-error" id="layout-name-error" hidden></p>
+          </div>
+
+          <fieldset class="field-group">
+            <legend>Where it is</legend>
+            <div class="field-row">
+              <div class="field">
+                <label for="layout-building">Building</label>
+                <input type="text" id="layout-building" name="building"
+                       maxlength="60" autocomplete="off" />
+              </div>
+              <div class="field field-narrow">
+                <!-- Text, not a number: floors are called B1 and G as often as
+                     they are called 2. -->
+                <label for="layout-floor">Floor</label>
+                <input type="text" id="layout-floor" name="floor"
+                       maxlength="60" autocomplete="off" />
+              </div>
+            </div>
+            <div class="field">
+              <label for="layout-location">Location</label>
+              <input type="text" id="layout-location" name="location"
+                     maxlength="60" autocomplete="off"
+                     placeholder="Main Hall, upper rails" />
+            </div>
+          </fieldset>
+
+          <fieldset class="field-group">
+            <legend>The grid</legend>
+            <div class="field-row">
+              <div class="field field-narrow">
+                <label for="layout-rows">Rows</label>
+                <input type="number" id="layout-rows" name="rows"
+                       min="1" max="100" step="1" inputmode="numeric" required />
+              </div>
+              <div class="field field-narrow">
+                <label for="layout-columns">Columns</label>
+                <input type="number" id="layout-columns" name="columns"
+                       min="1" max="100" step="1" inputmode="numeric" required />
+              </div>
+            </div>
+            <p class="field-error" id="layout-grid-error" hidden></p>
+            <!-- Rows and columns are the spaces between the lines, so a grid
+                 of 4 rows is drawn with 5 row lines. That is the one thing
+                 about this form somebody can get wrong without noticing, so
+                 the addresses it produces are named outright rather than left
+                 to be read off the drawing. -->
+            <p class="field-note" id="layout-grid-note" hidden></p>
+
+            <!-- The two words are the whole distinction this module rests on,
+                 so each carries its definition rather than being a bare
+                 label somebody has to already know the meaning of. -->
+            <div class="choices" role="radiogroup" aria-label="Allot by">
+              <label class="choice">
+                <input type="radio" name="allottedBy" value="cell" checked />
+                <span class="choice-body">
+                  <span class="choice-name">Cell</span>
+                  <span class="choice-note">
+                    The space formed where a row and a column meet.
+                  </span>
+                </span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="allottedBy" value="node" />
+                <span class="choice-body">
+                  <span class="choice-name">Intersection node</span>
+                  <span class="choice-note">
+                    The point where row and column lines cross.
+                  </span>
+                </span>
+              </label>
+            </div>
+          </fieldset>
+
+          <!-- What the grid asked for actually comes to. It updates as the
+               boxes above are typed in, so the counts are read while the
+               decision is being made rather than after it. -->
+          <div class="preview">
+            <div class="preview-figure" aria-hidden="true">
+              <div class="preview-drawing" id="layout-preview"></div>
+              <p class="preview-hint" id="layout-preview-hint">
+                Enter rows and columns to see the grid.
+              </p>
+            </div>
+            <dl class="preview-counts" id="layout-counts" role="status">
+              <div class="count" data-count="cell">
+                <dt>Cells</dt>
+                <dd id="layout-count-cells">—</dd>
+              </div>
+              <div class="count" data-count="node">
+                <dt>Intersection nodes</dt>
+                <dd id="layout-count-nodes">—</dd>
+              </div>
+            </dl>
+          </div>
+        </div>
+
+        <footer class="sheet-foot">
+          <p class="sheet-error" id="layout-error" role="alert" hidden></p>
+          <button type="button" class="button" id="layout-cancel-2">Cancel</button>
+          <button type="submit" class="button button-primary" id="layout-submit">
+            Submit
+          </button>
+        </footer>
+      </form>
+    </dialog>
+
+    <!-- ── What app.js clones ─────────────────────────────────────────────
+         The card is markup so that it can be read here, next to the page it
+         belongs to, rather than assembled in script out of strings. Only text
+         and the grid drawing are written into it. -->
+    <template id="tpl-layout-card">
+      <article class="card">
+        <div class="card-snapshot"></div>
+        <div class="card-body">
+          <h2 class="card-name"></h2>
+          <p class="card-place"></p>
+          <dl class="card-specs">
+            <div>
+              <dt>Grid</dt>
+              <dd class="card-grid"></dd>
+            </div>
+            <div>
+              <dt>Allotted by</dt>
+              <dd class="card-allotment"></dd>
+            </div>
+            <div>
+              <dt class="card-units-label"></dt>
+              <dd class="card-units"></dd>
+            </div>
+          </dl>
+        </div>
+        <footer class="card-foot">
+          <span class="status">
+            <span class="status-dot" aria-hidden="true"></span>
+            <span class="status-text"></span>
+          </span>
+          <button type="button" class="button button-quiet card-toggle"></button>
+        </footer>
+      </article>
+    </template>
 
     <script src="/app.js" type="module"></script>
   </body>
