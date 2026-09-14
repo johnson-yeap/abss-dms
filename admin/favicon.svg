@@ -1,8 +1,20 @@
+<!--
+  Light oak ground with the mark in wood brown — the rail's own two colours,
+  the other way up from the first attempt, which was a dark brown block and
+  read as a different palette from the app it belongs to.
+
+  The strokes are heavier than the in-page copies of this glyph because this
+  one is drawn at 16px, where the 1.7 weight the header uses disappears. The
+  hairline around the edge is what keeps the tile a shape at all against a
+  pale browser tab.
+-->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="7" fill="#7e5f42"/>
-  <g fill="none" stroke="#fffdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <rect x="8" y="8" width="16" height="16" rx="2.5"/>
-    <path d="M8 13.5h16"/>
-    <path d="M14.5 13.5V24"/>
+  <rect x="0.75" y="0.75" width="30.5" height="30.5" rx="6.5"
+        fill="#e9e0ce" stroke="#d3c6ad" stroke-width="1.5"/>
+  <g fill="none" stroke="#7e5f42" stroke-width="2.4"
+     stroke-linecap="round" stroke-linejoin="round">
+    <rect x="8" y="8.5" width="16" height="15" rx="2.5"/>
+    <path d="M8 13.75h16"/>
+    <path d="M14.5 13.75V23.5"/>
   </g>
 </svg>
