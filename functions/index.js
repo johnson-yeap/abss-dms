@@ -1,5 +1,5 @@
 /*
- * ABSS DMS — Cloud Functions.
+ * ABSS Donation Management System (DMS) — Cloud Functions.
  *
  * One function today: the admin portal's API, which exists to answer whether
  * the caller may open the portal at all.

@@ -1,6 +1,6 @@
 {
   "name": "functions",
-  "description": "Cloud Functions for ABSS DMS",
+  "description": "Cloud Functions for the ABSS Donation Management System (DMS)",
   "scripts": {
     "lint": "eslint --ext .js,.cjs .",
     "test": "node admin.test.cjs",

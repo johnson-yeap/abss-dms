@@ -77,6 +77,13 @@ Project ids are globally unique across Google Cloud, so `abss-dms` may be taken.
 If you use a different one, change `.firebaserc` and the two `frame-src` origins
 in `firebase.json`'s CSP to match.
 
+The display names above are short on purpose and do not match the name the
+portal shows. A Google Cloud project name is capped at 30 characters and "ABSS
+Donation Management System (DMS)" is 37, so the full name cannot go there at
+all. None of this is load-bearing: the id is what everything resolves by, the
+display name is console decoration, and the name users read is the wordmark in
+`admin/index.html`.
+
 **The web app is not optional.** `app.js` reads the project's config from
 `/__/firebase/init.json`, which Hosting serves from the web app — that is the
 reason no API key is written into this repository. With one web app in the

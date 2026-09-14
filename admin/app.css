@@ -1,35 +1,57 @@
 /*
- * ABSS DMS Admin.
+ * ABSS Donation Management System (DMS) — Admin.
  *
  * Light only, by choice, so there is one palette here and no second set of
- * tokens to keep honest. Everything that carries brand is in the block below:
- * swapping in real ABSS colours is an edit to :root and nothing else. The
- * values here are a placeholder deep-blue and slate, not the brand.
+ * tokens to keep honest.
+ *
+ * The palette is warm and quiet on purpose — unbleached paper, light oak, a
+ * muted wood brown — for a portal that serves a Buddhist temple. Two things
+ * follow from it that are easy to undo by accident:
+ *
+ *   Everything is warm. There is no neutral grey anywhere; every surface,
+ *   border and grey text has yellow in it. One cool grey dropped into this
+ *   reads as dirty rather than as a different shade.
+ *
+ *   The rail is light, not dark. So it is a border that separates it from the
+ *   content, not a change of brightness, and its own dividers are warm
+ *   hairlines rather than the white alpha a dark rail would use.
+ *
+ * The greys are darker than they look like they need to be. Warm mid-greys on
+ * warm near-whites lose contrast fast, and --muted is the one that has to hold
+ * 4.5:1 against --surface because it sets real text.
  */
 
 :root {
   color-scheme: light;
 
   /* Brand — the only block to change. */
-  --rail-bg: #0f2a4a;
-  --rail-bg-deep: #0b2039;
-  --rail-text: #c3d2e4;
-  --rail-text-strong: #ffffff;
-  --rail-hover: rgba(255, 255, 255, 0.09);
-  --accent: #1b6ac9;
-  --accent-soft: #e8f0fb;
+  --rail-bg: #ede6d8;
+  --rail-bg-deep: #e4dbc9;
+  --rail-text: #5f5749;
+  --rail-text-strong: #322d25;
+  --rail-hover: rgba(122, 104, 80, 0.1);
+  --accent: #7e5f42;
+  --accent-soft: #efe7da;
 
   /* Surfaces. */
-  --ground: #f4f6f9;
-  --surface: #ffffff;
-  --text: #16202c;
-  --muted: #5b6b7f;
-  --border: #dde3ea;
+  --ground: #f7f3ea;
+  --surface: #fffdf8;
+  --text: #3a342b;
+  --muted: #6f6656;
+  --border: #e2d9c8;
+  --border-strong: #d8cdb8;
 
   /* The two widths the rail moves between. Declared here rather than in the
      rules that use them because the content's own left edge is derived from
-     them and the two must not drift apart. */
-  --rail-w: 248px;
+     them and the two must not drift apart.
+
+     The expanded width is set by the wordmark, not by the nav labels:
+     "Donation Management System (DMS)" needs 192px on one line, and the head
+     spends the rest on the brand mark, the toggle and the padding between
+     them. Narrowing the rail clips that line — the rail's own overflow:hidden
+     swallows it silently, so it looks fine until you read it. Shortening the
+     name is the other way out; widening was the cheaper one. */
+  --rail-w: 292px;
   --rail-w-collapsed: 68px;
 
   --radius: 8px;
@@ -74,18 +96,24 @@ button {
   place-items: center;
   padding: 24px;
   /* The one gradient in the file. A sign-in page with nothing on it but a card
-     is otherwise a very large expanse of one grey. */
-  background: linear-gradient(160deg, var(--rail-bg) 0%, var(--rail-bg-deep) 100%);
+     is otherwise a very large expanse of one colour. Shallow on purpose: the
+     card has to lift off it, and this palette has nowhere near the range a
+     dark ground would have given it. */
+  background: linear-gradient(160deg, #f2ede1 0%, var(--rail-bg-deep) 100%);
 }
 
 .gate-card {
   width: 100%;
   max-width: 380px;
   background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 14px;
   padding: 40px 32px 32px;
   text-align: center;
-  box-shadow: 0 18px 48px rgba(11, 32, 57, 0.32);
+  /* A light card on a light ground: the border does the separating and the
+     shadow only softens it. Carrying the dark-ground shadow over would read as
+     a smudge. */
+  box-shadow: 0 12px 32px rgba(90, 72, 48, 0.09);
 }
 
 .gate-mark {
@@ -98,20 +126,31 @@ button {
   background: var(--accent-soft);
 }
 
+/* Two lines, because the name is too long to sit on one anywhere it appears.
+   The short half carries the weight and the long half explains it — which is
+   also how it is read aloud. */
 .wordmark {
   margin: 16px 0 0;
   font-size: 20px;
   font-weight: 700;
-  letter-spacing: -0.01em;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
 }
 
-.wordmark span {
+.wordmark-full {
+  display: block;
+  margin-top: 3px;
+  font-size: 11px;
   font-weight: 400;
+  letter-spacing: 0.01em;
   color: var(--muted);
 }
 
 .gate-note {
-  margin: 8px 0 24px;
+  /* Clear of the wordmark rather than tucked under it: the second line of the
+     lockup is also small and grey, and at 8px the two read as one paragraph
+     whose first line happens to be the name. */
+  margin: 18px 0 24px;
   color: var(--muted);
   font-size: 13px;
 }
@@ -131,8 +170,8 @@ button {
 }
 
 .signin:hover:not(:disabled) {
-  background: #f7f9fc;
-  border-color: #c9d3de;
+  background: var(--ground);
+  border-color: var(--border-strong);
 }
 
 .signin:disabled {
@@ -148,9 +187,11 @@ button {
   margin: 18px 0 0;
   padding: 11px 13px;
   border-radius: var(--radius);
-  background: #fdf2f1;
-  border: 1px solid #f4cdc8;
-  color: #8c2318;
+  /* Warm, like everything else here — a cool red on this ground reads as a
+     browser chrome error rather than as part of the page. */
+  background: #f8eee8;
+  border: 1px solid #e6cfc0;
+  color: #8a4a2f;
   font-size: 13px;
   text-align: left;
 }
@@ -171,6 +212,9 @@ button {
   flex-direction: column;
   background: var(--rail-bg);
   color: var(--rail-text);
+  /* A light rail against a light content area needs a line, not a brightness
+     step, to be a separate surface. */
+  border-right: 1px solid var(--border-strong);
   /* The one animated property. Transitioning the labels' opacity as well
      looked like a fade-in on every page load, because the class is applied
      before the first paint. */
@@ -188,7 +232,7 @@ button {
   gap: 10px;
   height: 60px;
   padding: 0 12px 0 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+  border-bottom: 1px solid var(--border-strong);
 }
 
 .rail-mark {
@@ -203,12 +247,18 @@ button {
   min-width: 0;
   font-size: 15px;
   font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
   color: var(--rail-text-strong);
   white-space: nowrap;
 }
 
-.rail-name span {
+.rail-name-full {
+  display: block;
+  margin-top: 2px;
+  font-size: 10.5px;
   font-weight: 400;
+  letter-spacing: 0.01em;
   color: var(--rail-text);
 }
 
@@ -288,7 +338,7 @@ button {
 
 .module.is-active {
   background: var(--accent);
-  color: #fff;
+  color: var(--surface);
 }
 
 .module-icon {
@@ -323,7 +373,7 @@ button {
   align-items: center;
   gap: 10px;
   padding: 12px 12px 14px 16px;
-  border-top: 1px solid rgba(255, 255, 255, 0.09);
+  border-top: 1px solid var(--border-strong);
 }
 
 .viewer-avatar {
@@ -334,7 +384,7 @@ button {
   height: 30px;
   border-radius: 50%;
   background: var(--accent);
-  color: #fff;
+  color: var(--surface);
   font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
@@ -434,7 +484,7 @@ button {
     position: fixed;
     inset: 0 auto 0 0;
     z-index: 10;
-    box-shadow: 2px 0 16px rgba(11, 32, 57, 0.2);
+    box-shadow: 2px 0 16px rgba(90, 72, 48, 0.16);
   }
 
   .content {

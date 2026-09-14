@@ -1,4 +1,4 @@
-# ABSS DMS
+# ABSS Donation Management System (DMS)
 
 ```
 admin/          the portal — index.html, app.css, app.js, favicon.svg
