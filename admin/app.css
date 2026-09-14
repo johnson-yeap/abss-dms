@@ -198,9 +198,14 @@ button {
 
 /* ── The portal ────────────────────────────────────────────────────────── */
 
+/* Exactly the viewport, not at least it. The difference matters now that a
+   page owns a scroller of its own: with min-height the shell grew to fit the
+   layout view's grid and the whole document scrolled, taking the rail and the
+   frozen headers with it. The panels scroll inside the shell instead, and the
+   rail stays where it was put. */
 .app {
   display: flex;
-  min-height: 100dvh;
+  height: 100dvh;
 }
 
 /* ── The side menu ─────────────────────────────────────────────────────── */
@@ -437,6 +442,9 @@ button {
 .content {
   flex: 1;
   min-width: 0;
+  /* Both needed: without min-height a flex item refuses to shrink below its
+     content, which is how a scroller two levels down ends up not scrolling. */
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }
@@ -459,6 +467,7 @@ button {
 
 .page {
   flex: 1;
+  min-height: 0;
   margin: 24px;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -1004,6 +1013,252 @@ button {
   .preview-counts {
     flex: none;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+
+/* ── One layout, opened ────────────────────────────────────────────────── */
+
+/* This page manages its own scrolling, so it gets neither the centring of an
+   empty page nor the padding and overflow of a filled one. */
+.page.page-view {
+  display: flex;
+  flex-direction: column;
+  place-items: normal;
+  padding: 0;
+  overflow: hidden;
+}
+
+.view {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  background: var(--surface);
+  border-radius: 10px;
+}
+
+.view-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.view-titles {
+  flex: 1;
+  min-width: 0;
+}
+
+.view-titles h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.view-place {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.view-specs {
+  margin: 0;
+  padding: 7px 14px;
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--ground);
+  border-bottom: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
+}
+
+.icon-button {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.icon-button:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.zoom {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+}
+
+.zoom .icon-button {
+  width: 26px;
+  height: 24px;
+  border-radius: 5px;
+}
+
+.zoom-level {
+  min-width: 50px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  cursor: pointer;
+}
+
+.zoom-level:hover {
+  color: var(--accent);
+}
+
+/* The scroller, and the only thing on the page that scrolls. The two header
+   strips and the corner are sticky *inside* it rather than siblings above it:
+   that is what keeps them aligned with the grid at every zoom and every scroll
+   position, with no second scroll listener to fall out of step. */
+.view-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  grid-template-columns: auto auto;
+  grid-template-rows: auto auto;
+  align-content: start;
+  justify-content: start;
+  background: var(--surface);
+  overscroll-behavior: contain;
+}
+
+.view-corner {
+  position: sticky;
+  top: 0;
+  left: 0;
+  z-index: 3;
+  background: var(--ground);
+  border-right: 1px solid var(--border-strong);
+  border-bottom: 1px solid var(--border-strong);
+}
+
+.view-columns {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  background: var(--ground);
+  border-bottom: 1px solid var(--border-strong);
+}
+
+.view-rows {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  background: var(--ground);
+  border-right: 1px solid var(--border-strong);
+}
+
+.head-cell {
+  flex: none;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+}
+
+/* The row and column the pointer is in, lit in their headers. On a sixty-wide
+   grid this is what tells you which line you are reading without moving the
+   pointer back to the edge. */
+.head-cell.is-lit {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.view-grid {
+  position: relative;
+  line-height: 0;
+}
+
+.grid-hover {
+  fill: var(--accent);
+  opacity: 0.15;
+  pointer-events: none;
+}
+
+/* Fixed, not absolute: it must not be clipped by the scroller it is drawn
+   over, and it has to keep working when the grid is the whole display. */
+.view-tip {
+  position: fixed;
+  z-index: 30;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--rail-text-strong);
+  color: #fffdf8;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(58, 48, 34, 0.25);
+}
+
+/* Full screen. The element painted by the browser is this one, so it has to
+   carry its own background — the page's ground is no longer behind it — and
+   its radius has to go or the display corners show through. */
+.view:fullscreen {
+  background: var(--surface);
+  border-radius: 0;
+}
+
+.view:fullscreen .view-head {
+  padding-inline: 16px;
+}
+
+.fs-close {
+  display: none;
+}
+
+/* Driven by a class rather than :fullscreen, because the fallback path — a
+   browser that refuses the request — has to draw the same icon. */
+.view.is-fullscreen .fs-open {
+  display: none;
+}
+
+.view.is-fullscreen .fs-close {
+  display: inline;
+}
+
+@media (max-width: 720px) {
+  .view-head {
+    flex-wrap: wrap;
+  }
+
+  .view-titles {
+    order: -1;
+    flex-basis: 100%;
   }
 }
 

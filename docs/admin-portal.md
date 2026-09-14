@@ -273,9 +273,10 @@ when one of these earns being the place people start, it is one line in
 ## The router
 
 `#/donors` in the address bar, which means a module survives a reload, can be
-linked to, and answers Back and Forward.
+linked to, and answers Back and Forward. A module may also have something
+inside it — `#/layouts/8f3kQ2` — which is the portal's first sub-page.
 
-Three things about it worth knowing before changing it:
+Four things about it worth knowing before changing it:
 
 **The label is the only place a module's name is written.** The heading is
 copied out of the active item, so the menu and the heading cannot disagree.
@@ -287,7 +288,14 @@ times to leave the portal.
 **An unknown key falls back to the first module and rewrites the address bar
 to match.** A stale bookmark is the ordinary way to arrive with one, and the
 alternatives are both worse — a blank frame, or an address that names a page
-other than the one on screen.
+other than the one on screen. An id that matches no layout falls back the same
+way, for the same reason.
+
+**A sub-page pushes where the menu replaces.** Opening one layout out of twelve
+is a step somebody means to take, and Back is how anybody expects to leave it —
+so `openLayout()` calls `pushState` and the back arrow calls `history.back()`.
+The menu keeps `replaceState`: clicking through four modules should not mean
+pressing Back four times to leave the portal.
 
 `aria-current` is removed from the inactive items rather than set to `"false"`.
 The attribute has no falsy value; every string it accepts, that one included,
@@ -306,9 +314,12 @@ means "this is the current page".
    button is not a second place to remember.
 
 A module that has to *do* something adds one line to `showModule()`, where
-Layouts has one: the router tells every module it has been opened, and only the
-ones that have asked to hear it do anything. That is deliberately not a table
-of pages the router knows are special.
+Layouts has one: the router tells every module it has been opened **and what
+inside it was asked for**, and only the ones that have asked to hear it do
+anything. That is deliberately not a table of pages the router knows are
+special — the router hides every `.page` whose `data-page` is not the open
+module, and a module with two pages of its own swaps between them itself. See
+`showLayout()`.
 
 Icons are drawn on a 24×24 viewBox at `stroke-width` 1.7 to match the rest.
 Check a new one at 20px rather than on the artboard — the first Donations glyph
@@ -363,7 +374,7 @@ first time a layout was edited, and it would cost a Storage bucket and a hole in
 the `img-src` of the CSP to keep. The same routine draws the card and the
 preview in the form, so a card cannot disagree with the form that made it.
 
-### The counts, and the one thing to check before this ships
+### The counts
 
 For a grid of `r` rows and `c` columns:
 
@@ -392,6 +403,60 @@ draw (A–E for 4 rows), and a line under the boxes names the addresses outright
 — "Addresses run A1 to E19 — rows A to E, columns 1 to 19." If a layout still
 turns up in the database one rail too tall, that line is the thing to make
 louder.
+
+### Opening one
+
+A card's button is **View**, not a status toggle. Activate and Deactivate live
+inside the opened layout instead: changing whether a campaign can use a space
+is a deliberate act on one layout, not something to press while scanning a grid
+of cards.
+
+The view is its own page at `#/layouts/<id>`, so it survives a reload and can be
+sent to somebody.
+
+**Every unit owns a box.** A cell fills its box; a node sits at its box's
+centre. That single decision is what lets the header strips, the hit testing
+and the tooltip be written once rather than twice — the address under a pointer
+is the box it is in, and the box is `(x / step, y / step)` whichever allotment
+is in use. It is also where the `+ 1` from `layoutCounts()` shows up a second
+time: a layout allotted by node is one box wider and one taller than the same
+grid allotted by cell, because `r` rows are drawn with `r + 1` row lines.
+
+**The headers are elements, not part of the drawing.** They are frozen with
+`position: sticky` inside the scroller, and there is no sticky inside an SVG.
+Being in the same scroller is also what keeps them aligned with the grid at
+every zoom and scroll position with no second scroll listener to fall out of
+step. On a sixty-column grid they are the whole point: scroll right without
+them and every node looks alike.
+
+**The tooltip is arithmetic, not ten thousand listeners.** One `pointermove` on
+the scroller works out the address from the pointer's position. A hundred by a
+hundred allotted by node is 10,201 units; that many listeners — or that many
+`title` attributes — is a page that stops answering a scroll, and `title` has a
+delay that makes sweeping across a grid useless. The row and column under the
+pointer are lit in their headers at the same time, which is what tells you
+which line you are reading without moving back to the edge.
+
+**Zoom belongs to the layout, not to the module.** It resets to 100% when a
+different layout is opened: 273% chosen for a four-row wall is not a sensible
+place to open a forty-row hall. Zooming keeps the middle of the view where it
+was, or pressing + on a wide grid walks you back to column 1 every time.
+
+**Full screen is the browser's.** `requestFullscreen()` on the view, so the
+rail, the heading and the browser's own chrome all go. It rejects rather than
+throwing, and a rejection falls back to leaving the icon and the state alone —
+a button that appears to do nothing is the one outcome worth avoiding. The
+`fullscreenchange` listener is what keeps the icon honest, because Escape and
+the window chrome both leave without going through the button.
+
+### One change outside this module
+
+`.app` is `height: 100dvh`, not `min-height`. With `min-height` the shell grew
+to fit the view's grid and the whole document scrolled — taking the rail and
+the frozen headers with it. The panels scroll inside the shell instead. That
+needed `min-height: 0` on `.content` and `.page` as well: a flex item refuses
+to shrink below its content without it, which is how a scroller two levels down
+ends up not scrolling.
 
 ### What this module deliberately cannot do
 
