@@ -1,18 +1,27 @@
 # ABSS Donation Management System (DMS)
 
-```
-admin/          the portal — index.html, app.css, app.js, favicon.svg
-functions/      adminApi, and the allowlist that guards it
-tools/          serve.cjs, the local harness
-docs/           admin-portal.md — setup, and why the gate is shaped this way
-```
-
-Run it locally, no Firebase project needed:
+Two halves, on two origins.
 
 ```
-node tools/serve.cjs          # http://localhost:5055
-cd functions && npm test
+app/            the donor app — abss-dms.web.app, open to anybody
+admin/          the staff portal — abss-dms-admin.web.app, behind an allowlist
+functions/      adminApi (the portal) and publicApi (the donation form)
+tools/          the two local harnesses, and the campaign seed
+docs/           donor-app.md, admin-portal.md
 ```
 
-Setting up the Firebase project, the allowlist secret, and the first deploy:
-[docs/admin-portal.md](docs/admin-portal.md).
+Run either locally, no Firebase project needed:
+
+```
+node tools/serve-app.cjs      # the donor app, http://localhost:5065
+node tools/serve.cjs          # the admin portal, http://localhost:5055
+cd functions && npm test      # 70 checks
+```
+
+The donor app's harness runs the real API over an in-memory database, so the
+code under test is the deployed code.
+
+- [docs/donor-app.md](docs/donor-app.md) — the form, the three languages, and
+  why there is a reference code on the PayNow page.
+- [docs/admin-portal.md](docs/admin-portal.md) — project setup, the allowlist
+  secret, and why the gate is shaped the way it is.
