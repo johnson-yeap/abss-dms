@@ -1,0 +1,452 @@
+/*
+ * ABSS DMS Admin.
+ *
+ * Light only, by choice, so there is one palette here and no second set of
+ * tokens to keep honest. Everything that carries brand is in the block below:
+ * swapping in real ABSS colours is an edit to :root and nothing else. The
+ * values here are a placeholder deep-blue and slate, not the brand.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* Brand — the only block to change. */
+  --rail-bg: #0f2a4a;
+  --rail-bg-deep: #0b2039;
+  --rail-text: #c3d2e4;
+  --rail-text-strong: #ffffff;
+  --rail-hover: rgba(255, 255, 255, 0.09);
+  --accent: #1b6ac9;
+  --accent-soft: #e8f0fb;
+
+  /* Surfaces. */
+  --ground: #f4f6f9;
+  --surface: #ffffff;
+  --text: #16202c;
+  --muted: #5b6b7f;
+  --border: #dde3ea;
+
+  /* The two widths the rail moves between. Declared here rather than in the
+     rules that use them because the content's own left edge is derived from
+     them and the two must not drift apart. */
+  --rail-w: 248px;
+  --rail-w-collapsed: 68px;
+
+  --radius: 8px;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--ground);
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* ── The gate ──────────────────────────────────────────────────────────── */
+
+.gate {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  /* The one gradient in the file. A sign-in page with nothing on it but a card
+     is otherwise a very large expanse of one grey. */
+  background: linear-gradient(160deg, var(--rail-bg) 0%, var(--rail-bg-deep) 100%);
+}
+
+.gate-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--surface);
+  border-radius: 14px;
+  padding: 40px 32px 32px;
+  text-align: center;
+  box-shadow: 0 18px 48px rgba(11, 32, 57, 0.32);
+}
+
+.gate-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.wordmark {
+  margin: 16px 0 0;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.wordmark span {
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.gate-note {
+  margin: 8px 0 24px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.signin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-weight: 600;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.signin:hover:not(:disabled) {
+  background: #f7f9fc;
+  border-color: #c9d3de;
+}
+
+.signin:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.g-mark {
+  flex: none;
+}
+
+.gate-error {
+  margin: 18px 0 0;
+  padding: 11px 13px;
+  border-radius: var(--radius);
+  background: #fdf2f1;
+  border: 1px solid #f4cdc8;
+  color: #8c2318;
+  font-size: 13px;
+  text-align: left;
+}
+
+/* ── The portal ────────────────────────────────────────────────────────── */
+
+.app {
+  display: flex;
+  min-height: 100dvh;
+}
+
+/* ── The side menu ─────────────────────────────────────────────────────── */
+
+.rail {
+  flex: none;
+  width: var(--rail-w);
+  display: flex;
+  flex-direction: column;
+  background: var(--rail-bg);
+  color: var(--rail-text);
+  /* The one animated property. Transitioning the labels' opacity as well
+     looked like a fade-in on every page load, because the class is applied
+     before the first paint. */
+  transition: width 160ms ease;
+  overflow: hidden;
+}
+
+.rail.is-collapsed {
+  width: var(--rail-w-collapsed);
+}
+
+.rail-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 60px;
+  padding: 0 12px 0 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.rail-mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--rail-text-strong);
+}
+
+.rail-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--rail-text-strong);
+  white-space: nowrap;
+}
+
+.rail-name span {
+  font-weight: 400;
+  color: var(--rail-text);
+}
+
+.rail-toggle {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--rail-text);
+  transition: background 120ms ease, color 120ms ease, transform 160ms ease;
+}
+
+.rail-toggle:hover {
+  background: var(--rail-hover);
+  color: var(--rail-text-strong);
+}
+
+/* Expanded, the chevron points left — press it and the rail goes that way.
+   Collapsed, the same path is turned to point right. */
+.rail.is-collapsed .rail-toggle {
+  transform: rotate(180deg);
+}
+
+/* Collapsed there is no room for the wordmark beside the toggle, and the
+   brand mark is what the toggle would sit on top of. The mark gives way; the
+   toggle is the control, and a rail that cannot be reopened is a trap. */
+.rail.is-collapsed .rail-head {
+  padding: 0;
+  justify-content: center;
+}
+
+.rail.is-collapsed .rail-mark,
+.rail.is-collapsed .rail-name {
+  display: none;
+}
+
+.modules {
+  flex: 1;
+  padding: 12px 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.modules ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.module {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: calc(100% - 16px);
+  margin: 2px 8px;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--rail-text);
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+  white-space: nowrap;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.module:hover {
+  background: var(--rail-hover);
+  color: var(--rail-text-strong);
+}
+
+.module.is-active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.module-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+}
+
+.module-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Collapsed, every row is its icon centred in the rail's width. The labels
+   stay in the DOM — a screen reader still reads them, and the title attribute
+   is what a pointer gets. */
+.rail.is-collapsed .module {
+  width: calc(100% - 16px);
+  justify-content: center;
+  padding: 9px 0;
+}
+
+.rail.is-collapsed .module-label {
+  display: none;
+}
+
+.rail-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 12px 14px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.viewer-avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.viewer-email {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--rail-text);
+  /* These are long and they are the one string here nobody should have to
+     guess at, so it truncates at the front of the domain rather than wrapping
+     the rail open. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.signout {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--rail-text);
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.signout:hover {
+  background: var(--rail-hover);
+  color: var(--rail-text-strong);
+}
+
+.rail.is-collapsed .rail-foot {
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 0 14px;
+}
+
+.rail.is-collapsed .viewer-email {
+  display: none;
+}
+
+/* ── The module's page ─────────────────────────────────────────────────── */
+
+.content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.content-head {
+  display: flex;
+  align-items: center;
+  height: 60px;
+  padding: 0 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.content-head h1 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.page {
+  flex: 1;
+  margin: 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+}
+
+.page-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* ── Narrow ────────────────────────────────────────────────────────────── */
+
+/* Below this the rail cannot have a quarter of the screen. It starts
+   collapsed — app.js only writes a remembered state, so a phone that has never
+   been expanded stays out of the way — and expanding it overlays the content
+   rather than squeezing it into nothing. */
+@media (max-width: 720px) {
+  .rail {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 10;
+    box-shadow: 2px 0 16px rgba(11, 32, 57, 0.2);
+  }
+
+  .content {
+    margin-left: var(--rail-w-collapsed);
+  }
+
+  .content-head,
+  .page {
+    padding-inline: 16px;
+  }
+
+  .page {
+    margin: 16px;
+  }
+}

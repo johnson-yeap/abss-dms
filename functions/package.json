@@ -1,0 +1,25 @@
+{
+  "name": "functions",
+  "description": "Cloud Functions for ABSS DMS",
+  "scripts": {
+    "lint": "eslint --ext .js,.cjs .",
+    "test": "node admin.test.cjs",
+    "serve": "firebase emulators:start --only functions",
+    "shell": "firebase functions:shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "engines": {
+    "node": "22"
+  },
+  "main": "index.js",
+  "dependencies": {
+    "firebase-admin": "^13.10.0",
+    "firebase-functions": "^7.3.2"
+  },
+  "devDependencies": {
+    "eslint": "^8.15.0",
+    "eslint-config-google": "^0.14.0"
+  },
+  "private": true
+}

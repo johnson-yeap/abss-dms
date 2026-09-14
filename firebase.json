@@ -1,0 +1,84 @@
+{
+  // Its own Hosting site rather than a path on something else, which is the
+  // point of it: a console behind an allowlist should not share an origin —
+  // and therefore cookies, storage, and the sign-in session it creates — with
+  // anything the public is meant to reach.
+  //
+  // Run `firebase hosting:sites:create abss-dms-admin` before the first deploy
+  // of this entry.
+  "hosting": [
+    {
+      "site": "abss-dms-admin",
+      "public": "admin",
+      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+      "rewrites": [
+        {
+          // Same-origin on purpose: the CSP below keeps connect-src at 'self',
+          // so a call straight to the cloudfunctions.net address would be
+          // stopped by the browser before it left. One rewrite for the whole
+          // module — the routing inside it is admin.js's.
+          "source": "/api/admin/**",
+          "function": {
+            "functionId": "adminApi",
+            "region": "asia-southeast1"
+          }
+        },
+        // Everything else is the single page.
+        { "source": "**", "destination": "/index.html" }
+      ],
+      "headers": [
+        {
+          "source": "**",
+          "headers": [
+            {
+              // Tight everywhere except the three places Firebase Auth needs,
+              // each of which is the sign-in and nothing else:
+              //
+              //   script-src www.gstatic.com   the Auth SDK, loaded from
+              //                                Google's own CDN by import()
+              //   script-src apis.google.com   api.js, which the popup flow
+              //                                loads to talk to its iframe.
+              //                                Without it sign-in fails as a
+              //                                bare auth/internal-error whose
+              //                                only evidence is a CSP
+              //                                violation for script-src-elem
+              //   connect-src the identity     the token exchange and refresh
+              //     endpoints
+              //   frame-src the auth domains   the hidden iframe the popup
+              //     and accounts.google.com    talks back through
+              //
+              // frame-ancestors stays 'none': nothing should ever embed this.
+              "key": "Content-Security-Policy",
+              "value": "default-src 'self'; script-src 'self' https://www.gstatic.com https://apis.google.com; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com; style-src 'self'; img-src 'self' data:; font-src 'self'; frame-src https://abss-dms.firebaseapp.com https://abss-dms-admin.firebaseapp.com https://accounts.google.com; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+            },
+            { "key": "X-Content-Type-Options", "value": "nosniff" },
+            // Nothing about this console should travel with a request that
+            // leaves it.
+            { "key": "Referrer-Policy", "value": "no-referrer" },
+            {
+              // This is a login page in front of internal records. It is never
+              // a search result.
+              "key": "X-Robots-Tag",
+              "value": "noindex, nofollow"
+            },
+            // Unhashed filenames, so nothing here may be held past a deploy.
+            { "key": "Cache-Control", "value": "no-cache" }
+          ]
+        }
+      ]
+    }
+  ],
+
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log"
+      ]
+    }
+  ]
+}

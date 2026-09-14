@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>ABSS DMS Admin</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/app.css" />
+  </head>
+  <body>
+    <!-- Two states, both in the document from the start and switched by
+         [hidden]: the sign-in gate — which doubles as the refusal for an
+         account that is not on the allowlist — and the portal itself. Built up
+         front rather than on demand because which one applies is known one
+         round trip in, and a portal that assembles itself after that reads as
+         a slow load. -->
+
+    <div class="gate" id="gate" hidden>
+      <div class="gate-card">
+        <span class="gate-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none"
+               stroke="currentColor" stroke-width="1.7"
+               stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3.5" width="18" height="17" rx="2.5" />
+            <path d="M3 8.5h18" />
+            <path d="M10 8.5v12" />
+          </svg>
+        </span>
+        <h1 class="wordmark">ABSS <span>DMS</span></h1>
+        <p class="gate-note" id="gate-note">
+          Sign in with the Google account on the administrator allowlist.
+        </p>
+        <button type="button" class="signin" id="signin">
+          <svg class="g-mark" viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">
+            <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/>
+            <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.92v2.33A9 9 0 0 0 9 18z"/>
+            <path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.92a9 9 0 0 0 0 8.1l3.05-2.33z"/>
+            <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .92 4.95L3.97 7.28C4.68 5.16 6.66 3.58 9 3.58z"/>
+          </svg>
+          Sign in with Google
+        </button>
+        <p class="gate-error" id="gate-error" hidden></p>
+      </div>
+    </div>
+
+    <div class="app" id="app" hidden>
+      <!-- ── The side menu ─────────────────────────────────────────────
+           Collapsed and expanded are the same markup: the labels stay in the
+           DOM and are hidden by width, so the state is one class on this
+           element and nothing has to be rebuilt to change it. -->
+      <aside class="rail" id="rail" aria-label="Modules">
+        <div class="rail-head">
+          <span class="rail-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none"
+                 stroke="currentColor" stroke-width="1.7"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3.5" width="18" height="17" rx="2.5" />
+              <path d="M3 8.5h18" />
+              <path d="M10 8.5v12" />
+            </svg>
+          </span>
+          <span class="rail-name">ABSS <span>DMS</span></span>
+
+          <!-- One chevron, drawn pointing left and rotated by CSS when the rail
+               is collapsed. Two icons swapped in script would be two things to
+               keep in step with a state that already lives in a class. -->
+          <button
+            type="button"
+            class="rail-toggle"
+            id="rail-toggle"
+            aria-controls="rail"
+            aria-expanded="true"
+            aria-label="Collapse side menu"
+            title="Collapse side menu"
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none"
+                 stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round"
+                 aria-hidden="true">
+              <path d="M15 5 8 12l7 7" />
+            </svg>
+          </button>
+        </div>
+
+        <!-- A nav with one item today. It is a list because the portal is meant
+             to gain modules, and the second one should be an <li> rather than a
+             rethink of the side menu. -->
+        <nav class="modules" aria-label="Modules">
+          <ul>
+            <li>
+              <button
+                type="button"
+                class="module is-active"
+                data-module="layouts"
+                aria-current="page"
+                title="Layouts"
+              >
+                <span class="module-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none"
+                       stroke="currentColor" stroke-width="1.7"
+                       stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="4" width="18" height="16" rx="2" />
+                    <path d="M3 9h18" />
+                    <path d="M10 9v11" />
+                  </svg>
+                </span>
+                <span class="module-label">Layouts</span>
+              </button>
+            </li>
+          </ul>
+        </nav>
+
+        <!-- Who is signed in, at the foot of the rail. Collapsed it is the
+             initial alone, and the sign-out moves into the tooltip-bearing
+             button beside it. -->
+        <div class="rail-foot">
+          <span class="viewer-avatar" id="viewer-avatar" aria-hidden="true"></span>
+          <span class="viewer-email" id="viewer-email"></span>
+          <button
+            type="button"
+            class="signout"
+            id="signout"
+            aria-label="Sign out"
+            title="Sign out"
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none"
+                 stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round"
+                 aria-hidden="true">
+              <path d="M15 17v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v2" />
+              <path d="M19 12H9" />
+              <path d="m16 9 3 3-3 3" />
+            </svg>
+          </button>
+        </div>
+      </aside>
+
+      <!-- ── The module ────────────────────────────────────────────────── -->
+      <main class="content">
+        <header class="content-head">
+          <h1 id="page-title">Layouts</h1>
+        </header>
+
+        <!-- Empty on purpose: the module has no content yet. -->
+        <section class="page" id="page-layouts" aria-labelledby="page-title">
+          <p class="page-empty">Nothing here yet.</p>
+        </section>
+      </main>
+    </div>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

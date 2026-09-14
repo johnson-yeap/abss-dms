@@ -1,0 +1,14 @@
+# Service account keys — never commit these
+serviceAccountKey.json
+*-serviceAccountKey.json
+**/serviceAccount*.json
+
+node_modules/
+
+# Written by the Firebase CLI.
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+.firebase/
+
+.DS_Store
