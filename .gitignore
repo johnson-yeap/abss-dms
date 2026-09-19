@@ -12,3 +12,6 @@ ui-debug.log
 .firebase/
 
 .DS_Store
+
+# Personal Claude Code settings for this project — never commit
+.claude/settings.local.json
