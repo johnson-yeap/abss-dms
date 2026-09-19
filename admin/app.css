@@ -1289,3 +1289,578 @@ button {
     margin: 16px;
   }
 }
+
+/* ── The donations module ──────────────────────────────────────────────── */
+
+/* The finder: a search box and one button, and on a phone it is the top of
+   the screen. Sticky rather than scrolling away, because the common use of
+   this module is to type, look, and retype — and a search box that has to be
+   scrolled back to between attempts is a search box being used wrong. */
+.finder {
+  position: sticky;
+  top: -18px;
+  z-index: 3;
+  display: flex;
+  gap: 10px;
+  /* The negative margins and matching padding let the sticky bar's own
+     background cover the full width of the page's 18px gutter, so results
+     scrolling underneath do not show through at its edges. */
+  margin: -18px -18px 12px;
+  padding: 18px;
+  background: var(--ground);
+}
+
+.finder-search {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.finder-search:focus-within {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.finder-search input {
+  flex: 1;
+  min-width: 0;
+  /* 44px tall, and 16px type. Any smaller and iOS Safari zooms the page when
+     the field takes focus, which leaves an admin scrolled sideways into a
+     box they can no longer see — on the one screen of this portal that is
+     used from a phone more than from a desk. */
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+}
+
+.finder-search input:focus {
+  outline: none;
+}
+
+.finder-search input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+#donation-filters {
+  flex: 0 0 auto;
+  height: 44px;
+}
+
+/* How many filters are set. Not colour alone and not a bare dot: the number
+   is the message, and the button beside it says what it counts. */
+.count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 5px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--surface);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Results, as cards ─────────────────────────────────────────────────── */
+
+.dcards {
+  display: grid;
+  gap: 10px;
+}
+
+/* The whole card is the button. On a phone the gesture is to tap the record,
+   not to find a View link in its corner — and making the card itself the
+   control is also what gives it keyboard focus and Enter for nothing. */
+.dcard {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dcard:hover {
+  border-color: var(--border-strong);
+  background: #fffefb;
+}
+
+.dcard:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.dcard-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dcard-donor {
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The amount never shrinks and never wraps. It is the second thing read
+   after the name, and a column of amounts that do not line up is a column
+   that has to be read rather than scanned. */
+.dcard-amount {
+  flex: 0 0 auto;
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.dcard-meta,
+.dcard-for {
+  font-size: 13px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dcard-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 3px;
+}
+
+/* ── Results, as a table ───────────────────────────────────────────────── */
+
+.table-wrap {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: auto;
+}
+
+.dtable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.dtable th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border-strong);
+  background: var(--ground);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.dtable td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.dtable tr:last-child td {
+  border-bottom: 0;
+}
+
+.dtable .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.drow {
+  cursor: pointer;
+}
+
+.drow:hover td {
+  background: var(--accent-soft);
+}
+
+.drow:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.drow-donor {
+  font-weight: 600;
+}
+
+.drow-date,
+.drow-receipt {
+  white-space: nowrap;
+}
+
+.drow-receipt {
+  font-variant-numeric: tabular-nums;
+}
+
+/* The two that can be long. Capped rather than allowed to set the table's
+   width, so the status and the receipt number stay on screen — which is the
+   whole reason the narrow screen gets cards instead. */
+.drow-campaign,
+.drow-recipients {
+  max-width: 22ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.more-wrap {
+  display: flex;
+  justify-content: center;
+  margin-top: 12px;
+}
+
+/* ── A status, wherever it is drawn ────────────────────────────────────── */
+
+/* Three states and three colours, all warm — a cool green here would be the
+   one thing on the page with no yellow in it. The dot is reinforcement; the
+   word beside it carries the meaning, so nothing is said by colour alone. */
+.dstatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+  color: var(--muted);
+}
+
+.dstatus-dot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #b3a894;
+}
+
+.dstatus.is-paid {
+  color: #4e6330;
+}
+
+.dstatus.is-paid .dstatus-dot {
+  background: #6d8347;
+}
+
+.dstatus.is-confirming {
+  color: #8a6524;
+}
+
+.dstatus.is-confirming .dstatus-dot {
+  background: #c59a3f;
+}
+
+.receipt-no {
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ── One donation, opened ──────────────────────────────────────────────── */
+
+.dview {
+  max-width: 620px;
+  padding: 16px 18px 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.dview-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.dview-titles {
+  flex: 1;
+  min-width: 0;
+}
+
+.dview-titles h2 {
+  margin: 2px 0 0;
+  font-size: 19px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.dview-amount {
+  margin: 2px 0 0;
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.dview-tags {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--ground);
+}
+
+.receipt-no.is-missing {
+  font-style: italic;
+}
+
+.dview-facts {
+  display: grid;
+  gap: 10px;
+  margin: 16px 0 0;
+}
+
+/* Two columns where there is room and stacked where there is not. The term
+   column is fixed so the values line up into one readable edge. */
+.dview-facts > div {
+  display: grid;
+  grid-template-columns: 148px minmax(0, 1fr);
+  gap: 4px 12px;
+}
+
+.dview-facts dt {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.dview-facts dd {
+  margin: 0;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.dview-block {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.dview-block h3 {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.dview-recipients {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+
+.dview-recipients li {
+  padding: 7px 11px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.dview-wishes {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* ── The filter sheet ──────────────────────────────────────────────────── */
+
+/* The layout form gets its column layout from `.sheet form`; this sheet has
+   no form in it, so it is the dialog itself that has to be the column.
+   Scoped to [open] because a <dialog> is display:none until it is. */
+#donation-filter-sheet[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+.checks {
+  display: grid;
+  gap: 8px;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  /* 44px of height, because these are ticked with a thumb. */
+  min-height: 44px;
+  padding: 8px 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.check:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.check:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.check input {
+  flex: 0 0 auto;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+/* The Submitted/Paid toggle. Two halves of one control rather than two
+   radios in a list, because it is a choice between two readings of the same
+   date boxes underneath it, not two things that could both be true. */
+.segmented {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--border-strong);
+  border-radius: 9px;
+  background: var(--ground);
+}
+
+.segmented label {
+  display: block;
+}
+
+.segmented input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.segmented span {
+  display: grid;
+  place-items: center;
+  min-height: 36px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.segmented input:checked + span {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(90, 72, 48, 0.14);
+}
+
+.segmented input:focus-visible + span {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.sheet-body .field input[type="date"],
+.sheet-body .field input[type="text"] {
+  /* 16px, for the same iOS zoom reason as the search box. */
+  min-height: 44px;
+  font-size: 16px;
+}
+
+.sheet-count {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── The phone ─────────────────────────────────────────────────────────── */
+
+@media (max-width: 720px) {
+  /* The filter sheet becomes the screen. A centred dialog with a margin
+     around it wastes the width that the date boxes and the campaign list
+     need, and leaves a strip of unusable page behind it. */
+  .sheet {
+    width: 100vw;
+    max-width: 100vw;
+    max-height: 100dvh;
+    height: 100dvh;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+  }
+
+  /* The footer's buttons are what a thumb reaches for, so they are given the
+     width rather than the live count, which is only being read. */
+  .sheet-foot {
+    flex-wrap: wrap;
+    /* Clear of the home indicator on an iPhone. */
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+
+  .sheet-count {
+    flex: 1 0 100%;
+    order: -1;
+  }
+
+  .sheet-foot .button {
+    flex: 1;
+    min-height: 44px;
+    justify-content: center;
+  }
+
+  /* The word goes and the icon stays; the count, if there is one, stays with
+     it. Two controls have to fit on one line with a search box, and "Filters"
+     is the part a sliders icon already says. */
+  .filters-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .dview {
+    padding: 14px 14px 20px;
+    border: 0;
+    border-radius: 0;
+  }
+
+  /* Stacked, because 148px of term column against a phone's width leaves
+     a value column too narrow to read a campaign name in. */
+  .dview-facts > div {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

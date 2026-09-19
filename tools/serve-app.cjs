@@ -95,8 +95,16 @@ const db = {
       return {
         add: async (record) => {
           donations.push(record);
+          // The recipients and the status are printed because they are what
+          // there is no other way to see from here: the donor's own page says
+          // nothing about either, and the admin portal is a different harness
+          // against a different in-memory store.
+          const forWhom = (record.recipients || []).length ?
+            `  for ${record.recipients.join(", ")}` :
+            "";
           console.log(`  donation #${donations.length}  ${record.reference}  ` +
-            `S$${record.amount}  ${record.payBy}  ${record.name}`);
+            `S$${record.amount}  ${record.payBy}  ${record.name}` +
+            `${forWhom}  [${record.status}]`);
           return { id: `d${donations.length}` };
         },
       };

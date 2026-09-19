@@ -120,6 +120,32 @@
             <span class="field-error" id="e-amount" hidden></span>
           </label>
 
+          <!-- The names a donation is offered on behalf of.
+               A fieldset rather than a label, because it is a group of inputs
+               and a <label> wrapping more than one control labels none of
+               them. The rows are built by app.js from the template at the
+               foot of this file; the first one is there from the start, so a
+               donor who wants to name one person does not have to press Add
+               to discover the field exists. -->
+          <fieldset class="field recipients">
+            <legend class="label">
+              <span data-i18n="form.recipients"></span>
+              <em class="opt" data-i18n="form.recipientsOptional"></em>
+            </legend>
+            <p class="hint" id="recipients-hint" data-i18n="form.recipientsHint"></p>
+            <div id="recipients-rows"></div>
+            <button type="button" class="add-row" id="recipients-add">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none"
+                   stroke="currentColor" stroke-width="2"
+                   stroke-linecap="round" aria-hidden="true">
+                <path d="M12 5v14" />
+                <path d="M5 12h14" />
+              </svg>
+              <span data-i18n="form.recipientAdd"></span>
+            </button>
+            <span class="field-error" id="e-recipients" hidden></span>
+          </fieldset>
+
           <label class="field">
             <span class="label">
               <span data-i18n="form.wishes"></span>
@@ -201,6 +227,23 @@
           </div>
         </a>
       </li>
+    </template>
+
+    <!-- One recipient row. Cloned rather than built from a string, for the
+         same reason the admin portal clones its cards: nothing in this file
+         hands a parser anything a person typed. -->
+    <template id="tpl-recipient">
+      <div class="recipient">
+        <input type="text" class="recipient-name" maxlength="80"
+               autocomplete="off" />
+        <button type="button" class="recipient-remove">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
+               stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
+      </div>
     </template>
 
     <script src="/app.js" type="module"></script>

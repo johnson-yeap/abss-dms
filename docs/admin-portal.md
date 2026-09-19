@@ -255,7 +255,7 @@ overlays the page rather than sitting beside it, and expanded above.
 
 ## The modules
 
-Seven. One of them, Layouts, has something in it:
+Seven. Two of them, Layouts and Donations, have something in them:
 
 **Access Control**, **Broadcasts**, **Campaigns**, **Donations**, **Donors**,
 **Layouts**, **Reports**.
@@ -480,3 +480,157 @@ building, a floor and a location. If they turn out to need to be one thing —
 printed together, allotted together — that is a layout holding a list of grids
 rather than one grid, and it is a change to `layout.js` before it is a change
 to anything else.
+
+## Donations
+
+The listing of what has been given: who gave it, how much, to which campaign,
+on whose behalf, and whether the money has arrived. A read and only a read —
+see *What this module deliberately cannot do*, below.
+
+### Who it is for, and what follows from that
+
+The common use is not a person at a desk. It is an admin standing somewhere
+with a phone, a donor on the telephone, and one question: *did my donation go
+through?* Everything about the module's shape comes from that.
+
+The search box is the top of the screen and is sticky, because the pattern is
+type, look, retype. The filters are behind one button, with a count on it, so
+they take one line rather than a panel. Results are cards rather than a table,
+because seven columns on a phone puts the status and the receipt number off
+the right edge — which are two of the things being looked for. On a screen
+with room, the same records are a table instead.
+
+Every tap target on that path is at least 44px, and every text input is 16px:
+below that, iOS Safari zooms the page when a field takes focus, and the admin
+is left scrolled sideways into a box they can no longer see.
+
+### The searching is in the browser
+
+`GET /donations` returns everything, up to `DONATIONS_CAP` in `admin.js`
+(5,000). The narrowing all happens in `admin/donations.mjs`, over records
+already in memory.
+
+This is a choice with a ceiling, and it is the right one at this size. What it
+buys is what the office asked for and Firestore will not do:
+
+- results that change **as you type**, with no round trip
+- **substring** matching, so "mei" finds Tan Mei Ling — Firestore matches a
+  prefix or nothing
+- **any combination** of filters at once, where Firestore permits one range
+  filter per query and wants a composite index per combination
+
+What it costs is that the ceiling is real. Past 5,000 the answer is not a
+bigger number; it is paging, a query per filter change, prefix-only name
+search, and probably a search service. The list route therefore answers with
+`held` — how many it did not send — and the line above the results says so in
+words. **An admin searching part of the data must never be left thinking they
+searched all of it.** That is the one failure mode of this design that would be
+silent, and it is the one thing in the module that must not be removed.
+
+### Everything is a Singapore date
+
+`donations.mjs` fixes the timezone at `+08:00` and does its own formatting.
+Both halves matter, and the first is a bug fix rather than a preference.
+
+A stored donation is an instant in UTC. If the range filter compared those
+instants against UTC days while the column rendered them in whatever zone the
+admin's phone is set to, a donation made at 1am on 1 October in Singapore —
+5pm on 30 September in UTC — would be filtered into September and displayed as
+"1 Oct 2026" in the same row. So the range boundaries are built as Singapore
+days and the column is rendered as Singapore days. `tools/serve.cjs` seeds one
+record at exactly that instant so the case is on screen rather than only in a
+test.
+
+The month names are a table in the file rather than `toLocaleDateString`,
+which renders September as "Sept" under `en-SG` and "Sep" under `en-GB` and
+depends on which ICU data a browser shipped. A list of dates that is spelled
+differently on two admins' phones invites the question of which one is right.
+
+### Two dates, and a toggle for them
+
+A donation has `createdAt` — when the donor submitted it — and `paidAt`, which
+is null until somebody records payment. The column shows `paidAt` for a paid
+record and `createdAt` for everything else, so a row is dated by the thing that
+last happened to it, and the list is ordered by the same value it displays.
+
+The range filter has a **Submitted / Paid** toggle because the office asks two
+different questions of one list: *what came in last week* and *what did we
+bank in September*. Filtering on the paid date necessarily lists nothing that
+has not been paid; the note under the date boxes says so, because an empty
+result with no explanation reads as a broken filter.
+
+### Status
+
+Three values, stored as `pending-payment`, `pending-confirmation` and `paid`.
+Every donation starts at the first, whichever way it is being paid — a PayNow
+donor who has been shown a QR has not thereby transferred, and a cash pledge is
+not cash. `publicapi.js` writes it and nothing else in the system moves it.
+
+`normaliseStatus()` reads anything unrecognised as `pending-payment`, including
+the flat `"pending"` that the first version of the donor form wrote. The
+direction is deliberate: a record whose status cannot be understood is one the
+office has not finished with, and reading it as paid is the one mistake here
+that loses money quietly.
+
+### Blessing recipients
+
+An array of names on the donation, collected by a repeatable field on the
+public form. Separate from `wishes` rather than parsed out of it: a wish is a
+sentence and a recipient is a name, the office searches for the second by
+typing a name into a box, and splitting a sentence into names is guesswork
+that would be wrong in three languages at once. Both fields exist; neither
+replaced the other.
+
+At most ten, each at most 80 characters, blanks dropped rather than refused.
+Repeats are kept, unlike the contact methods — two people really can share a
+name.
+
+### The campaign's name is joined, not stored
+
+A donation stores `campaignId` and `campaignSlug`, and the list route looks the
+names up from one read of the campaigns collection. A name copied onto the
+donation at the time it was made would be a second copy that goes stale the
+first time a campaign is renamed, and the office would then have two spellings
+of one campaign in its filter.
+
+A donation whose campaign has been deleted still lists, falling back to the
+slug. It is exactly the record somebody rings up about.
+
+### Why the filter is its own file
+
+`admin/donations.mjs` is pure — no DOM, no fetch, no clock it is not handed —
+and `admin/donations.test.mjs` runs it under Node with no browser. That is the
+reason for the split, and for the extension: there is no `package.json` above
+`admin/` and no build step, so Node reads a bare `.js` as CommonJS and chokes
+on `export`. The browser does not care about the extension at all.
+
+The test is in the `npm test` run in `functions/`, which is where every other
+suite lives. `firebase.json` excludes `**/*.test.mjs` from the admin site, so
+it is not served alongside the portal.
+
+### The phone number is not in the search index
+
+It is on the detail page and nowhere else. An admin searching "9123" wants one
+donor, not everybody whose number contains it — and a result list is read in
+corridors, where a column of phone numbers is more of the donor's data on
+screen than the task needs.
+
+### What this module deliberately cannot do
+
+**Change anything.** There is no write route. Status is not moved here, receipt
+numbers are not issued here, and a `POST` or `PATCH` to `/donations` is a 405.
+Marking a donation paid is a decision about money that nothing in this system
+is yet in a position to make: see the note in `publicapi.js` about what does
+not watch a bank account. `tools/seed-donations.cjs` writes the statuses,
+receipt numbers and paid dates that the fixtures need, and that file exists to
+be deleted.
+
+**Issue a receipt number.** `receiptNo` is a string the office puts there. The
+format in the seed data (`R-2026-00841`) is a shape, not a scheme — nothing
+generates it, nothing checks it, and nothing guarantees it is unique. A real
+numbering scheme is a decision about the temple's accounts before it is a
+decision about this code.
+
+**Export.** No CSV, no print view. Reports is its own module.
+
+**Search past the cap.** See *The searching is in the browser*.

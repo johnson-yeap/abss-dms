@@ -3,7 +3,7 @@
   "description": "Cloud Functions for the ABSS Donation Management System (DMS)",
   "scripts": {
     "lint": "eslint --ext .js,.cjs .",
-    "test": "node admin.test.cjs && node donation.test.cjs && node layout.test.cjs && node publicapi.test.cjs",
+    "test": "node admin.test.cjs && node donation.test.cjs && node layout.test.cjs && node publicapi.test.cjs && node ../admin/donations.test.mjs",
     "serve": "firebase emulators:start --only functions",
     "shell": "firebase functions:shell",
     "deploy": "firebase deploy --only functions",

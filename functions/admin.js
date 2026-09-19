@@ -6,11 +6,17 @@
  * below /config is behind it, and a route added without going through
  * authorize() is a hole rather than a feature.
  *
- * Behind the gate, Layouts: the grids of a physical space that campaigns allot
- * to donors. The list, one write to create a layout and one to switch a layout
- * off. What a layout *is* lives in layout.js, which is pure — this file is
- * routing, status codes and the database, and nothing in it decides whether a
- * grid is acceptable.
+ * Behind the gate, two modules. Layouts: the grids of a physical space that
+ * campaigns allot to donors — the list, one write to create a layout and one
+ * to switch a layout off. Donations: one read, and nothing else. What a
+ * layout and a donation *are* lives in layout.js and donation.js, both pure —
+ * this file is routing, status codes and the database, and nothing in it
+ * decides whether a grid or a donation is acceptable.
+ *
+ * The donations route is a read and only a read. Every status here is set by
+ * hand elsewhere for now, and there is deliberately no route in this file
+ * that moves one: see the note in publicapi.js about what does not watch a
+ * bank account, which is the same reason.
  *
  * The authorisation and the database are both injected rather than reached for:
  * verifying a token needs firebase-admin, reading the allowlist needs a secret
@@ -24,6 +30,26 @@ const {
   validateLayout,
   validateLayoutPatch,
 } = require("./layout");
+
+const { adminDonation } = require("./donation");
+
+// The ceiling on the donations list, and the one number in this file that is
+// a design decision rather than a guard.
+//
+// The portal loads every donation once and searches them in the browser —
+// see the head of admin/donations.mjs for why that is the right shape for
+// this office. This is where that choice stops being free. Past it, the
+// answer is not a bigger number: it is paging, a query per filter change,
+// and prefix-only name search, which is a different module.
+//
+// The list route says how many it held back, so the portal can tell an admin
+// that what they are searching is not everything — the one failure mode of
+// searching in the browser that must never be silent.
+const DONATIONS_CAP = 5000;
+
+// How many campaigns are loaded to put names on donations. The temple runs a
+// handful; this is a guard, not a paging scheme.
+const CAMPAIGNS_LIMIT = 200;
 
 /**
  * Splits the allowlist secret into the emails it names.
@@ -91,6 +117,62 @@ function createAdminApi(deps) {
     return snapshot.docs
       .map((doc) => adminLayout(doc.id, doc.data()))
       .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+  }
+
+  /**
+   * Every donation the portal will search, with its campaign's name attached.
+   *
+   * The campaigns are read once and used as a lookup rather than fetched per
+   * donation: a thousand donations across four campaigns is four reads this
+   * way and a thousand the other, and Firestore bills the difference.
+   *
+   * Ordered here rather than by the query, and the reason is worth stating.
+   * orderBy("createdAt") would refuse every document that has no createdAt —
+   * Firestore omits documents missing the ordered field — and those are
+   * exactly the malformed records an admin needs to be able to find. So the
+   * cap is applied by the query and the ordering in memory, which means the
+   * cap cuts an arbitrary five thousand rather than the newest five thousand.
+   * That is the honest trade at this size, and `held` is what tells the
+   * portal to say so.
+   *
+   * @returns {Promise<Object>} {donations, held}.
+   */
+  async function listDonations() {
+    const db = getDb();
+
+    const [donations, campaigns] = await Promise.all([
+      db.collection("donations").limit(DONATIONS_CAP + 1).get(),
+      db.collection("campaigns").limit(CAMPAIGNS_LIMIT).get(),
+    ]);
+
+    const byId = new Map();
+    const bySlug = new Map();
+    for (const doc of campaigns.docs) {
+      byId.set(doc.id, doc.data());
+      const slug = doc.data().slug;
+      if (slug) {
+        bySlug.set(slug, doc.data());
+      }
+    }
+
+    // One more than the cap was asked for, purely so this can be known.
+    const held = Math.max(0, donations.docs.length - DONATIONS_CAP);
+    const rows = donations.docs.slice(0, DONATIONS_CAP);
+
+    return {
+      donations: rows
+        .map((doc) => {
+          const data = doc.data();
+          // By id first, by slug second. A donation stores both, and the slug
+          // is the one that still resolves if a campaign was recreated.
+          const campaign = byId.get(data.campaignId) ||
+            bySlug.get(data.campaignSlug) || null;
+          return adminDonation(doc.id, data, campaign);
+        })
+        .sort((a, b) =>
+          String(b.createdAt || "").localeCompare(String(a.createdAt || ""))),
+      held,
+    };
   }
 
   /**
@@ -205,6 +287,16 @@ function createAdminApi(deps) {
         return;
       }
 
+      // One route, no query parameters, and the whole list. The narrowing is
+      // the browser's — see the head of admin/donations.mjs. `held` is the
+      // part of this answer that must not be dropped: it is how the portal
+      // knows to say that the search is not over everything.
+      if (req.method === "GET" && path === "/donations") {
+        const { donations, held } = await listDonations();
+        res.status(200).json({ donations, held, cap: DONATIONS_CAP });
+        return;
+      }
+
       if (req.method === "POST" && path === "/layouts") {
         await createLayout(req, res);
         return;
@@ -233,7 +325,9 @@ function createAdminApi(deps) {
     // route accepts, because the two are different mistakes: the first is a
     // stale portal asking for something that was never here, the second is
     // this file and the page disagreeing about a verb.
-    const known = path === "/session" || /^\/layouts(\/|$)/.test(path);
+    const known = path === "/session" ||
+      /^\/layouts(\/|$)/.test(path) ||
+      /^\/donations(\/|$)/.test(path);
     res.status(known ? 405 : 404).json({
       error: known ? "method-not-allowed" : "not-found",
     });
@@ -241,6 +335,7 @@ function createAdminApi(deps) {
 }
 
 module.exports = {
+  DONATIONS_CAP,
   createAdminApi,
   parseAllowlist,
 };

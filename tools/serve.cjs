@@ -36,6 +36,10 @@ const TYPES = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
+  // donations.mjs. A module served as anything but a JavaScript type is
+  // refused by the browser before it runs, and the page then fails with an
+  // import error rather than a 404 — which is a confusing way to find out.
+  ".mjs": "text/javascript; charset=utf-8",
   ".svg": "image/svg+xml",
 };
 
@@ -83,6 +87,151 @@ const LAYOUTS = {
   },
 };
 
+// Donations, and campaigns for their names to be joined from.
+//
+// A spread rather than a handful: three statuses, both payment methods,
+// donations with no recipients and with more than a card can show, names in
+// both scripts, one whose campaign has been deleted, and dates either side of
+// a month boundary in Singapore time. Searching and filtering cannot be
+// judged against two tidy records, and every one of these is a case the
+// module has to draw without looking broken.
+const CAMPAIGNS = {
+  c1: {
+    slug: "vesak-2026",
+    name: {
+      "zh-Hans": "卫塞节供僧大典",
+      "zh-Hant": "衛塞節供僧大典",
+      "en": "Vesak Day Offering",
+    },
+  },
+  c2: {
+    slug: "kathina-2026",
+    name: {
+      "zh-Hans": "卡提那功德衣法会",
+      "zh-Hant": "卡提那功德衣法會",
+      "en": "Kathina Robe Offering",
+    },
+  },
+  c3: {
+    slug: "mid-autumn-2026",
+    name: { "zh-Hans": "中秋燃灯祈福", "en": "Mid-Autumn Lantern Blessing" },
+  },
+};
+
+/**
+ * @param {Object} fields - What differs from the common shape.
+ * @returns {Object} One stored donation.
+ */
+function donation(fields) {
+  return {
+    phone: "+65 9123 4567",
+    contact: ["whatsapp"],
+    recipients: [],
+    wishes: "",
+    payBy: "paynow",
+    locale: "zh-Hans",
+    status: "pending-payment",
+    receiptNo: null,
+    paidAt: null,
+    ...fields,
+  };
+}
+
+const DONATIONS = {
+  d1: donation({
+    name: "Tan Mei Ling",
+    amount: 300,
+    recipients: ["Tan Ah Kow", "Lim Siew Hoon"],
+    wishes: "合家平安，身体健康",
+    campaignId: "c1",
+    campaignSlug: "vesak-2026",
+    reference: "VSK-7Q2M9C",
+    status: "paid",
+    receiptNo: "R-2026-00841",
+    paidAt: "2026-09-12T06:41:00.000Z",
+    createdAt: "2026-09-11T02:10:00.000Z",
+  }),
+  d2: donation({
+    name: "Wong Kah Hoe",
+    amount: 100,
+    recipients: ["黄氏历代祖先"],
+    campaignId: "c3",
+    campaignSlug: "mid-autumn-2026",
+    reference: "MID-4KD2PA",
+    payBy: "cash",
+    contact: ["sms", "call"],
+    createdAt: "2026-09-18T09:05:00.000Z",
+  }),
+  d3: donation({
+    name: "陈美玲",
+    amount: 300,
+    recipients: ["陈大明", "陈小明", "陈美玲", "陈家全体"],
+    wishes: "愿以此功德，回向法界众生",
+    campaignId: "c2",
+    campaignSlug: "kathina-2026",
+    reference: "KTH-9MPX3C",
+    locale: "zh-Hant",
+    status: "pending-confirmation",
+    createdAt: "2026-09-17T11:30:00.000Z",
+  }),
+  d4: donation({
+    name: "Kavitha d/o Raman",
+    amount: 100,
+    recipients: ["Raman s/o Kumar"],
+    campaignId: "c1",
+    campaignSlug: "vesak-2026",
+    reference: "VSK-3TAWQE",
+    contact: [],
+    status: "paid",
+    receiptNo: "R-2026-00840",
+    paidAt: "2026-09-04T01:15:00.000Z",
+    createdAt: "2026-09-02T23:40:00.000Z",
+  }),
+  // 2026-09-30T17:00Z is 1 October, 1am, in Singapore. It is here so that a
+  // date range ending on 30 September visibly does not include it — the one
+  // bug in this module that would otherwise never be noticed.
+  d5: donation({
+    name: "Sasi Nair",
+    amount: 300,
+    campaignId: "c2",
+    campaignSlug: "kathina-2026",
+    reference: "KTH-8DQR2M",
+    payBy: "cash",
+    status: "pending-confirmation",
+    createdAt: "2026-09-30T17:00:00.000Z",
+  }),
+  // The campaign this names has been deleted. It still has to list, because
+  // it is exactly the record somebody rings up about.
+  d6: donation({
+    name: "Ong Bee Hoon",
+    amount: 100,
+    recipients: ["Ong Teck Seng"],
+    campaignId: "gone",
+    campaignSlug: "ullambana-2024",
+    reference: "ULL-2XKC7N",
+    status: "paid",
+    receiptNo: "R-2024-00219",
+    paidAt: "2024-08-20T03:00:00.000Z",
+    createdAt: "2024-08-18T07:22:00.000Z",
+  }),
+  // Written before there were three statuses, and before recipients existed.
+  // Its flat "pending" has to read as pending payment rather than as nothing.
+  d7: {
+    name: "Lim Guan Choo",
+    phone: "+65 8222 1111",
+    contact: ["whatsapp"],
+    amount: 100,
+    wishes: "🙏🙏",
+    payBy: "paynow",
+    locale: "en",
+    campaignId: "c1",
+    campaignSlug: "vesak-2026",
+    reference: "VSK-6HNPQD",
+    status: "pending",
+    createdAt: "2026-08-29T05:00:00.000Z",
+  },
+};
+
 let written = 0;
 
 // Enough of Firestore for the routes admin.js has: a limited list, an add, and
@@ -90,7 +239,22 @@ let written = 0;
 // real one is not being asked for is a fake that can pass a test the database
 // would fail.
 const db = {
-  collection() {
+  collection(name) {
+    // Donations and campaigns are reads only, so they need none of the rest.
+    if (name === "donations" || name === "campaigns") {
+      const store = name === "donations" ? DONATIONS : CAMPAIGNS;
+      const reads = {
+        limit: () => reads,
+        get: async () => ({
+          docs: Object.entries(store).map(([id, doc]) => ({
+            id,
+            data: () => doc,
+          })),
+        }),
+      };
+      return reads;
+    }
+
     const api = {
       limit: () => api,
       get: async () => ({
@@ -231,5 +395,6 @@ const server = http.createServer((req, res) => {
 
 server.listen(PORT, () => {
   console.log(`ABSS DMS admin harness on http://localhost:${PORT}`);
-  console.log(`  ${Object.keys(LAYOUTS).length} layouts, held in memory`);
+  console.log(`  ${Object.keys(LAYOUTS).length} layouts, ` +
+    `${Object.keys(DONATIONS).length} donations, held in memory`);
 });

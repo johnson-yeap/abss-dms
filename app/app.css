@@ -419,6 +419,86 @@ textarea:focus-visible {
   text-align: right;
 }
 
+/* ── Blessing recipients ───────────────────────────────────────────────── */
+
+/* A line under the legend saying what the field is for. The label alone —
+   "Blessing recipient(s)" — is a phrase a donor may not have met before, and
+   the temple would rather explain it once than collect the donor's own name
+   in it a hundred times. */
+.hint {
+  margin: 0 0 8px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.recipient {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.recipient input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 44px square: a thumb target, not an icon. This sits next to a text field on
+   a phone, and a remove button smaller than the finger pressing it is how a
+   donor deletes the wrong row. */
+.recipient-remove {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.recipient-remove:hover {
+  border-color: var(--danger-border);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.add-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  /* Padded to the same 44px height as the field above it. */
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.add-row:hover:not(:disabled) {
+  background: var(--accent-soft);
+  border-style: solid;
+  border-color: var(--accent);
+}
+
+/* Disabled rather than hidden at the limit. A button that disappears leaves
+   the donor wondering whether they missed it; one that is visibly spent says
+   the limit has been reached. */
+.add-row:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
 .field-error {
   display: block;
   margin-top: 5px;

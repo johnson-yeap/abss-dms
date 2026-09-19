@@ -35,6 +35,33 @@ const WISHES_MAX = 100;
 
 const NAME_MAX = 80;
 
+// The names a donation is offered on behalf of. Optional, and separate from
+// `wishes` rather than parsed out of it: a wish is a sentence and a recipient
+// is a name, and the office searches for the second by typing a name into a
+// box. Splitting a sentence into names is guesswork that would be wrong in
+// three languages at once.
+//
+// Ten because that is a family, and a donation naming more than ten people is
+// a list somebody meant to attach rather than type. Each name gets the donor's
+// own limit, since they are the same kind of thing.
+const RECIPIENTS_MAX = 10;
+const RECIPIENT_MAX = NAME_MAX;
+
+// What has happened to the money, in the three states the office distinguishes.
+//
+//   pending-payment       nothing has arrived. Every donation starts here,
+//                         whichever method was chosen: a PayNow donor who has
+//                         been shown a QR has not thereby transferred, and a
+//                         cash pledge is not cash.
+//   pending-confirmation  money has been observed — a transfer seen, an
+//                         envelope taken — and has not been reconciled.
+//   paid                  reconciled, and a receipt number issued.
+//
+// Nothing in this system moves a donation along on its own; see the note in
+// publicapi.js about what does not watch a bank account.
+const STATUSES = ["pending-payment", "pending-confirmation", "paid"];
+
+
 // Loose on purpose. This is Singapore-first but a donor may be reachable on a
 // foreign mobile, and a phone validator that is stricter than the world is a
 // validator that turns away real donations. Digits, spaces and the usual
@@ -164,6 +191,22 @@ function validateDonation(body, campaign) {
     errors.push({ field: "amount", code: "invalid" });
   }
 
+  // Blank rows are dropped rather than refused. The form adds a row when the
+  // donor presses Add, and an empty one left behind is a row they thought
+  // better of — not a mistake to stop the donation for.
+  //
+  // Not deduplicated, unlike contact above. Two people really can share a
+  // name, and a family offering on behalf of two relatives called 陈美玲 would
+  // find one of them silently dropped.
+  const rawRecipients = Array.isArray(input.recipients) ? input.recipients : [];
+  const recipients = rawRecipients.map(text).filter(Boolean);
+  if (recipients.length > RECIPIENTS_MAX) {
+    errors.push({ field: "recipients", code: "too-many" });
+  }
+  if (recipients.some((one) => countCharacters(one) > RECIPIENT_MAX)) {
+    errors.push({ field: "recipients", code: "too-long" });
+  }
+
   const wishes = text(input.wishes);
   if (countCharacters(wishes) > WISHES_MAX) {
     errors.push({ field: "wishes", code: "too-long" });
@@ -182,6 +225,7 @@ function validateDonation(body, campaign) {
       phone,
       contact,
       amount,
+      recipients,
       wishes,
       payBy,
       locale: normaliseLocale(input.locale),
@@ -214,6 +258,99 @@ function publicCampaign(id, doc) {
     eventEnd: doc.eventEnd || null,
     amounts: Array.isArray(doc.amounts) && doc.amounts.length ? doc.amounts : AMOUNTS,
   };
+}
+
+/**
+ * Reads a stored status as one of the three.
+ *
+ * Everything unrecognised falls to pending-payment, and the fall is the point
+ * rather than a default. Records written by the first version of the donor
+ * form carry a flat "pending", which meant exactly this. And a status this
+ * file has never heard of is a record the office has not finished with —
+ * reading it as paid would be the one mistake here that loses money quietly.
+ *
+ * @param {*} value - Anything a stored donation's `status` might be.
+ * @returns {string} One of STATUSES.
+ */
+function normaliseStatus(value) {
+  const status = text(value);
+  return STATUSES.includes(status) ? status : STATUSES[0];
+}
+
+/**
+ * Reduces a stored donation to what the admin portal reads.
+ *
+ * An allowlist, for the same reason publicCampaign() is one — but note what
+ * it is protecting against here, which is different. Nobody outside the
+ * allowlist reaches this. What it buys is that a field added to a donation
+ * later (an internal note, who reconciled it, a bank reference) does not
+ * appear in the portal's search index and on a phone screen because somebody
+ * wrote it to the document.
+ *
+ * The campaign's name is passed in rather than read off the donation. It is
+ * not stored on the donation on purpose: a name copied at donation time is a
+ * second copy that goes stale the first time a campaign is renamed, and the
+ * office would then have two spellings of one campaign in its filter.
+ *
+ * @param {string} id - The document id.
+ * @param {Object} doc - The stored donation.
+ * @param {Object} [campaign] - The campaign it belongs to, if it was found.
+ * @returns {Object} The shape the portal reads.
+ */
+function adminDonation(id, doc, campaign = null) {
+  return {
+    id,
+    donor: doc.name || "",
+    phone: doc.phone || "",
+    contact: Array.isArray(doc.contact) ? doc.contact : [],
+    amount: typeof doc.amount === "number" ? doc.amount : 0,
+    recipients: Array.isArray(doc.recipients) ? doc.recipients : [],
+    wishes: doc.wishes || "",
+    payBy: doc.payBy || "",
+    locale: doc.locale || DEFAULT_LOCALE,
+    campaignId: doc.campaignId || null,
+    campaignSlug: doc.campaignSlug || null,
+    // An empty object rather than null when the campaign has gone: the portal
+    // then has one shape to read and shows the slug it still has, instead of
+    // a card with a hole where a campaign should be.
+    campaignName: (campaign && campaign.name) || {},
+    reference: doc.reference || "",
+    status: normaliseStatus(doc.status),
+    // Both nullable, and both only ever set by hand. A receipt number on a
+    // record that is not paid, or a paid date on one with no number, is a
+    // disagreement the portal shows rather than hides — see the note in
+    // donations.mjs about why neither is derived from the other.
+    receiptNo: doc.receiptNo || null,
+    paidAt: stamp(doc.paidAt),
+    createdAt: stamp(doc.createdAt),
+  };
+}
+
+/**
+ * Reads a stored timestamp as an ISO string.
+ *
+ * Firestore hands back a Timestamp, the local harness hands back the ISO
+ * string it stored, and a seeded record may carry either. All three become
+ * one string here, because the portal sorts and filters on these and
+ * comparing a Timestamp with a string silently orders neither.
+ *
+ * @param {*} value - A Timestamp, a Date, an ISO string, or nothing.
+ * @returns {string|null} An ISO string, or null.
+ */
+function stamp(value) {
+  if (!value) {
+    return null;
+  }
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value.toDate === "function") {
+    return value.toDate().toISOString();
+  }
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+  return null;
 }
 
 /**
@@ -251,12 +388,17 @@ module.exports = {
   LOCALES,
   NAME_MAX,
   PAY_METHODS,
+  RECIPIENTS_MAX,
+  RECIPIENT_MAX,
   REFERENCE_ALPHABET,
+  STATUSES,
   WISHES_MAX,
+  adminDonation,
   countCharacters,
   isOpen,
   makeReference,
   normaliseLocale,
+  normaliseStatus,
   publicCampaign,
   validateDonation,
 };

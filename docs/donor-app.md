@@ -76,9 +76,23 @@ amount that is not on it did not come from the form.
 **Errors are field/code pairs, never sentences.** The server does not know which
 of three phrasings the page is in; the browser owns the wording.
 
+**Blessing recipients are dropped, not refused, when blank.** The form adds a
+row when the donor presses Add, and an empty one left behind is a row they
+thought better of rather than a mistake to stop a donation for. At most ten,
+each under the donor's own 80-character limit. Repeats are kept, unlike the
+contact methods — two people really can share a name, and a family offering on
+behalf of two relatives called 陈美玲 should not silently lose one of them.
+
 `publicapi.js` adds the rules that need the database: a campaign is re-checked
 at submit, because it can close between a page being opened and its form being
 sent, and the browser holding a stale page has no way to know.
+
+**A donation is written as `pending-payment`, always.** Whichever way it is
+being paid. A PayNow donor who has been shown a QR has not thereby
+transferred, and writing anything else here would be this endpoint asserting
+something it cannot know. `receiptNo` and `paidAt` are written as `null` in the
+same breath, so that every donation has one shape and the admin portal never
+has to tell "not paid yet" apart from "written before these fields existed".
 
 **Nothing is echoed back.** A reflected value is how an endpoint like this
 becomes somebody else's delivery mechanism.
@@ -195,6 +209,35 @@ Singapore, and a timestamp invites the question of whose midnight it means every
 time somebody reads one. A missing end date means it has not closed — the other
 reading, a missing date parsing to zero, is a campaign that silently refuses
 money.
+
+---
+
+---
+
+## The form's fields
+
+| Field | Required | Limit | Stored as |
+| --- | --- | --- | --- |
+| Name | yes | 80 characters | `name` |
+| Contact number | yes | 8–15 digits | `phone` |
+| How may we contact you | no | any of three | `contact[]` |
+| Donation amount | yes | the campaign's own set | `amount` |
+| Blessing recipient(s) | no | 10 names, 80 characters each | `recipients[]` |
+| Your wishes | no | 100 characters | `wishes` |
+| Payment method | yes | PayNow or cash | `payBy` |
+
+**Recipients and wishes are both there, and neither replaced the other.** A
+wish is a sentence and a recipient is a name. The office searches for the
+second by typing a name into a box in the admin portal, and parsing names out
+of a free-text sentence is guesswork that would be wrong in three languages at
+once. The donor gets a repeatable name field *and* the textarea.
+
+The recipient rows are built by `app.js` from a template rather than written in
+the markup, so `[data-i18n]` does not reach them — `applyRecipientStrings()`
+re-words them instead, which also covers a donor switching language halfway
+through filling the form in. The last row is emptied rather than removed when
+its ✕ is pressed: a form that can reach zero rows is a form whose field has
+disappeared, and the donor is left pressing Add to find out where it went.
 
 ---
 

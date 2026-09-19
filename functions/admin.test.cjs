@@ -16,7 +16,7 @@
  */
 
 const assert = require("assert");
-const { createAdminApi, parseAllowlist } = require("./admin");
+const { DONATIONS_CAP, createAdminApi, parseAllowlist } = require("./admin");
 
 let failures = 0;
 
@@ -124,6 +124,35 @@ function database(seed = {}) {
     },
   };
   return { db, docs };
+}
+
+/**
+ * The same fake, for routes that read more than one collection.
+ *
+ * database() above answers every collection with the same documents, which is
+ * all the layouts routes need and is a trap for anything that joins: a
+ * donations route reading campaigns would be handed donations and would look
+ * as though the join worked. This one keys on the name.
+ *
+ * @param {Object} seed - Documents by collection, then by id.
+ * @returns {Object} {db}.
+ */
+function collections(seed = {}) {
+  const db = {
+    collection: (name) => {
+      const api = {
+        limit: () => api,
+        get: async () => ({
+          docs: Object.entries(seed[name] || {}).map(([id, doc]) => ({
+            id,
+            data: () => doc,
+          })),
+        }),
+      };
+      return api;
+    },
+  };
+  return { db };
 }
 
 // A clock that does not move, so an updatedAt written by a route is a value a
@@ -454,10 +483,176 @@ async function layouts() {
   });
 }
 
+/* ── GET /donations ───────────────────────────────────────────────────── */
+
+/**
+ * @returns {Promise<void>} When the donations route's checks have run.
+ */
+async function donations() {
+  suite("GET /donations");
+
+  const allowed = async () => ({ ok: true, email: "ops@example.com" });
+  const stranger = async () => ({ ok: false, reason: "no-token" });
+
+  const seed = {
+    donations: {
+      old: {
+        name: "Wong Kah Hoe",
+        amount: 100,
+        campaignId: "c1",
+        campaignSlug: "vesak-2026",
+        status: "pending-payment",
+        createdAt: "2026-09-01T02:00:00.000Z",
+      },
+      recent: {
+        name: "Tan Mei Ling",
+        amount: 300,
+        recipients: ["Tan Ah Kow"],
+        campaignId: "c2",
+        campaignSlug: "kathina-2026",
+        status: "paid",
+        receiptNo: "R-2026-00841",
+        paidAt: "2026-09-12T06:41:00.000Z",
+        createdAt: "2026-09-11T02:10:00.000Z",
+      },
+    },
+    campaigns: {
+      c1: { slug: "vesak-2026", name: { en: "Vesak Day Offering", "zh-Hans": "卫塞节供僧大典" } },
+      c2: { slug: "kathina-2026", name: { en: "Kathina Robe Offering" } },
+    },
+  };
+
+  /**
+   * @param {Object} store - From collections().
+   * @param {Function} authorize - Who is asking.
+   * @returns {Function} The handler.
+   */
+  function api(store, authorize = allowed) {
+    return createAdminApi({
+      authorize,
+      getDb: () => store.db,
+      getTimestamp: clock,
+    });
+  }
+
+  await test("the list is refused without a token", async () => {
+    // The same check the layouts list gets, and for the same reason: this one
+    // serves donors' names and phone numbers.
+    const res = recorder();
+    await api(collections(seed), stranger)(
+      request({ path: "/api/admin/donations" }), res
+    );
+    assert.strictEqual(res.code, 401);
+    assert.strictEqual(res.body.donations, undefined);
+  });
+
+  await test("the list comes back newest first", async () => {
+    const res = recorder();
+    await api(collections(seed))(request({ path: "/api/admin/donations" }), res);
+    assert.strictEqual(res.code, 200);
+    assert.deepStrictEqual(res.body.donations.map((d) => d.id), ["recent", "old"]);
+  });
+
+  await test("each donation carries its campaign's names", async () => {
+    // The join. Not stored on the donation, because a name copied at donation
+    // time is a second copy that goes stale when a campaign is renamed.
+    const res = recorder();
+    await api(collections(seed))(request({ path: "/api/admin/donations" }), res);
+    const [paid, pending] = res.body.donations;
+    assert.strictEqual(paid.campaignName.en, "Kathina Robe Offering");
+    assert.strictEqual(pending.campaignName["zh-Hans"], "卫塞节供僧大典");
+  });
+
+  await test("a donation whose campaign has gone still lists", async () => {
+    // It is exactly the record an admin is most likely to be chasing.
+    const orphan = {
+      donations: { d1: { name: "Tan", campaignId: "gone", campaignSlug: "gone-2020" } },
+      campaigns: {},
+    };
+    const res = recorder();
+    await api(collections(orphan))(request({ path: "/api/admin/donations" }), res);
+    assert.strictEqual(res.code, 200);
+    assert.strictEqual(res.body.donations.length, 1);
+    assert.deepStrictEqual(res.body.donations[0].campaignName, {});
+  });
+
+  await test("a campaign is found by slug when the id does not match", async () => {
+    const recreated = {
+      donations: { d1: { name: "Tan", campaignId: "old-id", campaignSlug: "vesak-2026" } },
+      campaigns: { newId: { slug: "vesak-2026", name: { en: "Vesak Day Offering" } } },
+    };
+    const res = recorder();
+    await api(collections(recreated))(request({ path: "/api/admin/donations" }), res);
+    assert.strictEqual(res.body.donations[0].campaignName.en, "Vesak Day Offering");
+  });
+
+  await test("the answer says how many were held back, and the cap", async () => {
+    // The one failure mode of searching in the browser that must not be
+    // silent: an admin whose search is over part of the data.
+    const res = recorder();
+    await api(collections(seed))(request({ path: "/api/admin/donations" }), res);
+    assert.strictEqual(res.body.held, 0);
+    assert.strictEqual(res.body.cap, DONATIONS_CAP);
+  });
+
+  await test("past the cap, the extra is held back and counted", async () => {
+    const many = { donations: {}, campaigns: {} };
+    for (let i = 0; i < DONATIONS_CAP + 3; i += 1) {
+      many.donations[`d${i}`] = { name: `Donor ${i}`, createdAt: "2026-09-01T00:00:00.000Z" };
+    }
+    const res = recorder();
+    await api(collections(many))(request({ path: "/api/admin/donations" }), res);
+    assert.strictEqual(res.body.donations.length, DONATIONS_CAP);
+    assert.strictEqual(res.body.held, 3);
+  });
+
+  await test("a phone number reaches the portal but a stray field does not", async () => {
+    // Both halves matter. The office rings donors back, so the number is
+    // served; the allowlist is what keeps a field nobody has thought about
+    // from arriving with it.
+    const withNote = {
+      donations: { d1: { name: "Tan", phone: "+65 9123 4567", internalNote: "called twice" } },
+      campaigns: {},
+    };
+    const res = recorder();
+    await api(collections(withNote))(request({ path: "/api/admin/donations" }), res);
+    assert.strictEqual(res.body.donations[0].phone, "+65 9123 4567");
+    assert.strictEqual(res.body.donations[0].internalNote, undefined);
+  });
+
+  await test("a write to the donations route is refused", async () => {
+    // This module is a read. Nothing here moves a donation's status, and a
+    // POST that quietly created one would be the worst kind of surprise.
+    for (const method of ["POST", "PATCH", "DELETE"]) {
+      const res = recorder();
+      await api(collections(seed))(
+        request({ method, path: "/api/admin/donations", body: {} }), res
+      );
+      assert.strictEqual(res.code, 405, `${method} should be refused`);
+    }
+  });
+
+  await test("a database that throws is 500, and says nothing about why", async () => {
+    const broken = {
+      db: {
+        collection: () => {
+          throw new Error("firestore: quota");
+        },
+      },
+    };
+    const res = recorder();
+    await api(broken)(request({ path: "/api/admin/donations" }), res);
+    assert.strictEqual(res.code, 500);
+    assert.strictEqual(res.body.error, "unavailable");
+    assert.ok(!JSON.stringify(res.body).includes("quota"));
+  });
+}
+
 (async () => {
   await allowlist();
   await gate();
   await layouts();
+  await donations();
   console.log(failures ? `\n${failures} failed` : "\nall passed");
   process.exit(failures ? 1 : 0);
 })();

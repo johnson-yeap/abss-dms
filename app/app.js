@@ -99,6 +99,11 @@ function applyStrings() {
   el("f-name").placeholder = t(locale, "form.namePlaceholder");
   el("f-phone").placeholder = t(locale, "form.phonePlaceholder");
   el("f-wishes").placeholder = t(locale, "form.wishesPlaceholder");
+  // The recipient rows are built by this file rather than written in the
+  // markup, so [data-i18n] above does not reach them. They are re-worded
+  // here instead, which also covers the rows a donor has already added when
+  // they switch language halfway through filling the form in.
+  applyRecipientStrings();
 
   // The <html lang> decides which glyphs a browser picks for characters that
   // Simplified and Traditional share codepoints for, and which dictionary a
@@ -374,12 +379,103 @@ function renderDone(reference) {
   show("done");
 }
 
+/* ── Blessing recipients ────────────────────────────────────────────────── */
+
+// The same limit the server holds, and the reason it is repeated rather than
+// fetched: the button has to stop being pressable at the right moment, and a
+// form that lets a donor type an eleventh name and then refuses the whole
+// submission is a form that wasted their time. donation.js is still the one
+// that decides; this only keeps the page from offering what it would refuse.
+const RECIPIENTS_MAX = 10;
+
+/**
+ * Adds one empty recipient row.
+ *
+ * @param {boolean} [focus] - Whether to put the cursor in it.
+ * @returns {void}
+ */
+function addRecipient(focus = false) {
+  const rows = el("recipients-rows");
+  if (rows.children.length >= RECIPIENTS_MAX) {
+    return;
+  }
+
+  const row = el("tpl-recipient").content.firstElementChild.cloneNode(true);
+  rows.appendChild(row);
+  applyRecipientStrings();
+  updateRecipientControls();
+
+  if (focus) {
+    row.querySelector(".recipient-name").focus();
+  }
+}
+
+/**
+ * Words every recipient row in the reader's language.
+ *
+ * @returns {void}
+ */
+function applyRecipientStrings() {
+  const rows = el("recipients-rows");
+  if (!rows) {
+    return;
+  }
+  const placeholder = t(state.locale, "form.recipientsPlaceholder");
+  const remove = t(state.locale, "form.recipientRemove");
+
+  for (const row of rows.children) {
+    row.querySelector(".recipient-name").placeholder = placeholder;
+    // Both, and not a visible label: the ✕ is the whole button, so the
+    // accessible name has to be the attribute, and the title is what a
+    // pointer user gets. Ten rows of "Remove this name" read out in sequence
+    // is the cost of the alternative being no name at all.
+    const button = row.querySelector(".recipient-remove");
+    button.setAttribute("aria-label", remove);
+    button.title = remove;
+  }
+}
+
+/**
+ * Keeps the Add button and the remove buttons honest.
+ *
+ * The last remaining row keeps its remove button, and pressing it empties
+ * that row rather than deleting it — see the handler. A form that can arrive
+ * at zero rows is a form with a field that has vanished, and the donor has
+ * no way to get it back except by pressing Add and wondering what happened.
+ *
+ * @returns {void}
+ */
+function updateRecipientControls() {
+  const rows = el("recipients-rows");
+  el("recipients-add").disabled = rows.children.length >= RECIPIENTS_MAX;
+}
+
+/**
+ * @returns {Array<string>} What is typed in the rows, blanks dropped.
+ */
+function recipientValues() {
+  return [...document.querySelectorAll(".recipient-name")]
+    .map((input) => input.value.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Puts the rows back to one empty one.
+ *
+ * @returns {void}
+ */
+function resetRecipients() {
+  el("recipients-rows").replaceChildren();
+  addRecipient();
+}
+
 /* ── The form ───────────────────────────────────────────────────────────── */
 
 const ERROR_NODES = {
   name: "e-name",
   phone: "e-phone",
   amount: "e-amount",
+  recipients: "e-recipients",
   wishes: "e-wishes",
   payBy: "e-payby",
 };
@@ -414,6 +510,10 @@ function showFieldErrors(fields) {
     name: el("f-name"),
     phone: el("f-phone"),
     amount: el("f-amount"),
+    // The first row stands in for the group: a refusal on recipients is
+    // about one of several boxes, and the server says which rule was broken
+    // rather than which row broke it.
+    recipients: document.querySelector(".recipient-name"),
     wishes: el("f-wishes"),
     payBy: el("f-payby"),
   };
@@ -480,6 +580,7 @@ async function submitForm(event) {
     phone: el("f-phone").value,
     contact,
     amount: Number(el("f-amount").value),
+    recipients: recipientValues(),
     wishes: el("f-wishes").value,
     payBy: el("f-payby").value,
     locale: state.locale,
@@ -566,6 +667,32 @@ async function render() {
 
 el("form").addEventListener("submit", submitForm);
 el("f-wishes").addEventListener("input", updateWishesCounter);
+
+el("recipients-add").addEventListener("click", () => addRecipient(true));
+
+// One listener on the group rather than one per row, so a row added later
+// needs no wiring of its own.
+el("recipients-rows").addEventListener("click", (event) => {
+  const button = event.target.closest(".recipient-remove");
+  if (!button) {
+    return;
+  }
+  const row = button.closest(".recipient");
+  const rows = el("recipients-rows");
+
+  // The last row is emptied, not removed. A form that can reach zero rows is
+  // a form whose field has disappeared, and the donor is left pressing Add to
+  // find out where it went.
+  if (rows.children.length === 1) {
+    row.querySelector(".recipient-name").value = "";
+  } else {
+    row.remove();
+  }
+  updateRecipientControls();
+});
+
+// One row from the start, so the field is visible without pressing Add.
+resetRecipients();
 el("error-retry").addEventListener("click", () => render());
 
 el("brand").addEventListener("click", (event) => {

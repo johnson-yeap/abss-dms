@@ -175,7 +175,17 @@ function createPublicApi(deps) {
       // What the temple has been told, not what has been received. Nothing in
       // this system watches a bank account, so no code here may ever move a
       // record past this on its own.
-      status: "pending",
+      //
+      // Every donation starts here whichever way it is being paid. A PayNow
+      // donor who has been shown a QR has not thereby transferred, and the
+      // temptation to write pending-confirmation for them is the temptation
+      // to have this endpoint assert something it cannot know.
+      status: "pending-payment",
+      // Written as null rather than left off, so that every donation has the
+      // same shape and the portal never has to tell "not paid yet" apart from
+      // "written before these fields existed".
+      receiptNo: null,
+      paidAt: null,
       createdAt: Timestamp.now(),
     });
 

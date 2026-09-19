@@ -300,13 +300,133 @@
           <p class="page-empty">Nothing here yet.</p>
         </section>
 
+        <!-- ── Donations ───────────────────────────────────────────────
+             Built for a phone first. The common use of this module is an
+             admin standing somewhere with a donor on the telephone, and the
+             thing they need is one record out of a few thousand — so the
+             search box is the top of the page, the filters are behind one
+             button, and the results are cards rather than a table that would
+             put the status and the receipt number off the right edge.
+
+             Everything below the finder is written by app.js from the
+             templates at the foot of this file. -->
         <section
-          class="page"
+          class="page page-wide"
           id="page-donations"
           data-page="donations"
           aria-labelledby="page-title" hidden
         >
-          <p class="page-empty">Nothing here yet.</p>
+          <div class="finder">
+            <div class="finder-search">
+              <svg viewBox="0 0 24 24" width="17" height="17" fill="none"
+                   stroke="currentColor" stroke-width="2"
+                   stroke-linecap="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="7" />
+                <path d="M20 20l-3.5-3.5" />
+              </svg>
+              <!-- type=search rather than text: it gets the phone keyboard's
+                   search key, and iOS draws its own clear affordance. -->
+              <input type="search" id="donation-query" autocomplete="off"
+                     placeholder="Search name, recipient or receipt no."
+                     aria-label="Search donations" />
+            </div>
+
+            <button type="button" class="button" id="donation-filters"
+                    aria-haspopup="dialog">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
+                   stroke="currentColor" stroke-width="2"
+                   stroke-linecap="round" aria-hidden="true">
+                <path d="M4 7h16M7 12h10M10 17h4" />
+              </svg>
+              <span class="filters-label">Filters</span>
+              <!-- How many filters the closed sheet is hiding. Without it an
+                   admin who left a status ticked is looking at an empty list
+                   with nothing on screen saying why. -->
+              <span class="count" id="donation-filter-count" hidden></span>
+            </button>
+          </div>
+
+          <p class="toolbar-note" id="donations-note" role="status"></p>
+
+          <!-- Cards or rows, never both: app.js draws whichever the screen
+               is wide enough for and redraws when that changes. Two shapes
+               rather than one restyled by CSS, because a table row forced
+               into a card loses its semantics on the way. -->
+          <div class="dcards" id="donations-cards"></div>
+
+          <div class="table-wrap" id="donations-table-wrap" hidden>
+            <table class="dtable">
+              <thead>
+                <tr>
+                  <th scope="col">Date</th>
+                  <th scope="col">Donor</th>
+                  <th scope="col" class="num">Amount</th>
+                  <th scope="col">Campaign</th>
+                  <th scope="col">Blessing recipient(s)</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Receipt no.</th>
+                </tr>
+              </thead>
+              <tbody id="donations-rows"></tbody>
+            </table>
+          </div>
+
+          <div class="more-wrap">
+            <button type="button" class="button" id="donations-more" hidden></button>
+          </div>
+
+          <p class="page-empty" id="donations-empty" hidden></p>
+        </section>
+
+        <!-- ── One donation, opened ────────────────────────────────────
+             Its own page, reached at #/donations/<id>, the same way a layout
+             is. This is where the donor's phone number lives: it is not on
+             the cards and not in the search index, because a list is read in
+             public places and a number is only wanted once somebody has
+             found the record they were looking for. -->
+        <section
+          class="page page-view"
+          id="page-donation"
+          data-page="donation"
+          aria-labelledby="dview-donor" hidden
+        >
+          <div class="dview">
+            <header class="dview-head">
+              <button type="button" class="icon-button" id="dview-back"
+                      aria-label="Back to donations" title="Back to donations">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none"
+                     stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round"
+                     aria-hidden="true">
+                  <path d="M15 5 8 12l7 7" />
+                </svg>
+              </button>
+              <div class="dview-titles">
+                <h2 id="dview-donor"></h2>
+                <p class="dview-amount" id="dview-amount"></p>
+              </div>
+            </header>
+
+            <div class="dview-tags">
+              <span class="dstatus" id="dview-status">
+                <span class="dstatus-dot" aria-hidden="true"></span>
+                <span class="dstatus-text"></span>
+              </span>
+              <span class="receipt-no" id="dview-receipt"></span>
+            </div>
+
+            <dl class="dview-facts" id="dview-facts"></dl>
+
+            <section class="dview-block" id="dview-recipients-block">
+              <h3>Blessing recipient(s)</h3>
+              <ul class="dview-recipients" id="dview-recipients"></ul>
+            </section>
+
+            <section class="dview-block" id="dview-wishes-block">
+              <h3>Wishes</h3>
+              <p class="dview-wishes" id="dview-wishes"></p>
+            </section>
+          </div>
         </section>
 
         <section
@@ -588,6 +708,138 @@
         </footer>
       </form>
     </dialog>
+
+    <!-- ── The filter sheet ───────────────────────────────────────────────
+         A <dialog>, like the layout form and for the same three reasons:
+         Escape closes it, focus is trapped inside it, and the page behind is
+         inert. On a phone it is the whole screen, which is what the rules in
+         app.css make it.
+
+         It applies as it is changed rather than on an Apply button, and the
+         footer carries a live count so the effect is visible without closing
+         it. The alternative — collect, then apply — has an admin on a phone
+         choosing four things blind and finding out afterwards. -->
+    <dialog class="sheet" id="donation-filter-sheet"
+            aria-labelledby="donation-filter-title">
+      <div class="sheet-head">
+        <h2 id="donation-filter-title">Filter donations</h2>
+        <button type="button" class="sheet-close" id="donation-filter-close"
+                aria-label="Close" title="Close">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none"
+               stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="sheet-body">
+        <fieldset class="field-group">
+          <legend>Date range</legend>
+          <!-- Which date the range applies to. The office asks two different
+               questions of one list: what came in last week, and what was
+               banked in September. -->
+          <div class="segmented" role="radiogroup" aria-label="Date to filter on">
+            <label>
+              <input type="radio" name="donation-basis" value="submitted" checked />
+              <span>Submitted</span>
+            </label>
+            <label>
+              <input type="radio" name="donation-basis" value="paid" />
+              <span>Paid</span>
+            </label>
+          </div>
+          <div class="field-row">
+            <label class="field">
+              <span>From</span>
+              <input type="date" id="donation-from" />
+            </label>
+            <label class="field">
+              <span>To</span>
+              <input type="date" id="donation-to" />
+            </label>
+          </div>
+          <p class="field-note" id="donation-basis-note"></p>
+        </fieldset>
+
+        <fieldset class="field-group">
+          <legend>Status</legend>
+          <div class="checks" id="donation-statuses"></div>
+        </fieldset>
+
+        <fieldset class="field-group">
+          <legend>Campaign</legend>
+          <div class="checks" id="donation-campaigns"></div>
+          <p class="field-note" id="donation-campaigns-empty" hidden>
+            No campaigns among the donations loaded.
+          </p>
+        </fieldset>
+
+        <fieldset class="field-group">
+          <legend>Exact fields</legend>
+          <label class="field">
+            <span>Donor name</span>
+            <input type="text" id="donation-donor" autocomplete="off" />
+          </label>
+          <label class="field">
+            <span>Blessing recipient</span>
+            <input type="text" id="donation-recipient" autocomplete="off" />
+          </label>
+          <label class="field">
+            <span>Receipt no.</span>
+            <input type="text" id="donation-receipt" autocomplete="off" />
+          </label>
+        </fieldset>
+      </div>
+
+      <footer class="sheet-foot">
+        <p class="sheet-count" id="donation-filter-count-note" role="status"></p>
+        <button type="button" class="button" id="donation-filter-clear">
+          Clear all
+        </button>
+        <button type="button" class="button button-primary"
+                id="donation-filter-done">Done</button>
+      </footer>
+    </dialog>
+
+    <!-- One donation, as a card. The whole card is the button: on a phone the
+         expected gesture is to tap the record, not to find a View link in its
+         corner. -->
+    <template id="tpl-donation-card">
+      <button type="button" class="dcard">
+        <span class="dcard-top">
+          <span class="dcard-donor"></span>
+          <span class="dcard-amount"></span>
+        </span>
+        <span class="dcard-meta"></span>
+        <span class="dcard-for"></span>
+        <span class="dcard-foot">
+          <span class="dstatus">
+            <span class="dstatus-dot" aria-hidden="true"></span>
+            <span class="dstatus-text"></span>
+          </span>
+          <span class="receipt-no"></span>
+        </span>
+      </button>
+    </template>
+
+    <!-- The same donation as a table row, for a screen with room for one. -->
+    <template id="tpl-donation-row">
+      <tr class="drow" tabindex="0" role="button">
+        <td class="drow-date"></td>
+        <td class="drow-donor"></td>
+        <td class="drow-amount num"></td>
+        <td class="drow-campaign"></td>
+        <td class="drow-recipients"></td>
+        <td>
+          <span class="dstatus">
+            <span class="dstatus-dot" aria-hidden="true"></span>
+            <span class="dstatus-text"></span>
+          </span>
+        </td>
+        <td class="drow-receipt"></td>
+      </tr>
+    </template>
 
     <!-- ── What app.js clones ─────────────────────────────────────────────
          The card is markup so that it can be read here, next to the page it

@@ -66,7 +66,15 @@
     {
       "site": "abss-dms-admin",
       "public": "admin",
-      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+      // The test beside donations.mjs is not part of the portal. Static files
+      // under public/ are served to anyone who asks for them by name, and a
+      // test file is neither wanted there nor worth the question of why it is.
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**",
+        "**/*.test.mjs"
+      ],
       "rewrites": [
         {
           // Same-origin on purpose: the CSP below keeps connect-src at 'self',

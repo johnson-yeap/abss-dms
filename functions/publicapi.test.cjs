@@ -269,7 +269,12 @@ async function donating() {
     assert.strictEqual(written.length, 1);
     assert.strictEqual(written[0].name, "Tan Wei Ming");
     assert.strictEqual(written[0].campaignId, "c1");
-    assert.strictEqual(written[0].status, "pending");
+    assert.strictEqual(written[0].status, "pending-payment");
+    // Both written, both null. A donation the office has not touched has the
+    // same shape as one it has, so nothing downstream has to tell "not paid"
+    // apart from "field not there".
+    assert.strictEqual(written[0].receiptNo, null);
+    assert.strictEqual(written[0].paidAt, null);
   });
 
   await test("writes only validated fields, not whatever was posted", async () => {
@@ -283,7 +288,7 @@ async function donating() {
     assert.strictEqual(res.code, 201);
     // The two that matter: a poster cannot mark their own donation received,
     // and cannot add a field of their choosing to the temple's database.
-    assert.strictEqual(written[0].status, "pending");
+    assert.strictEqual(written[0].status, "pending-payment");
     assert.strictEqual(written[0].isAdmin, undefined);
   });
 

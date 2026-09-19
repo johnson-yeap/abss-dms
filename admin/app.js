@@ -11,6 +11,21 @@
  * ours is the signed-in email, and it reaches the DOM through textContent.
  */
 
+import {
+  STATUS_ORDER,
+  activeCount,
+  amountLabel,
+  campaignLabel,
+  contactLabel,
+  dateLabel,
+  displayDate,
+  haystack,
+  payLabel,
+  recipientsLabel,
+  search,
+  statusLabel,
+} from "./donations.mjs";
+
 const el = (id) => document.getElementById(id);
 
 // Where the collapsed/expanded choice is kept. Per browser rather than per
@@ -313,6 +328,9 @@ function showModule(key, id = null, remember = true) {
   // rather than the router holding a table of pages it knows are special.
   if (open === "layouts") {
     openLayouts(id);
+  }
+  if (open === "donations") {
+    openDonations(id);
   }
   // Short form here, unlike the document's own <title>: this is a browser tab,
   // and the module is the part worth reading when six of them are open.
@@ -1302,6 +1320,497 @@ async function submitLayout() {
   }
 }
 
+/* ── Donations ──────────────────────────────────────────────────────────── */
+
+// Below this the results are cards; above it they are a table. The number is
+// where seven columns stop fitting without the last two going off the right
+// edge, which is the whole reason there are two shapes.
+const DONATION_CARDS_BELOW = "(max-width: 720px)";
+
+// How many results are put on screen at once.
+//
+// Not a page size — the search has already run over everything in memory and
+// the count in the note is the true one. This is only about how many nodes
+// are built, because building four thousand of them on every keystroke is
+// what would make a search-as-you-type box stop typing as you type.
+const DRAW_LIMIT = 60;
+
+const donations = {
+  // Loaded on the first visit and kept, the same way layouts are.
+  items: null,
+  loading: false,
+  // What the server held back past its cap, and the cap itself. Shown rather
+  // than swallowed: an admin searching part of the data must be told so.
+  held: 0,
+  cap: 0,
+  // How many of the matches are currently drawn. Raised by Show more, and
+  // put back whenever the filters change.
+  drawn: DRAW_LIMIT,
+  filters: emptyFilters(),
+};
+
+const cardsMedia = window.matchMedia(DONATION_CARDS_BELOW);
+
+/**
+ * @returns {Object} Filters that exclude nothing.
+ */
+function emptyFilters() {
+  return {
+    query: "",
+    donor: "",
+    recipient: "",
+    receiptNo: "",
+    campaigns: [],
+    statuses: [],
+    from: "",
+    to: "",
+    basis: "submitted",
+  };
+}
+
+/**
+ * Opens the module, loading the donations the first time it is looked at.
+ *
+ * @param {string|null} [id] - A donation to open, from #/donations/<id>.
+ * @returns {Promise<void>} When the results or one donation are up.
+ */
+async function openDonations(id = null) {
+  if (!donations.items && !donations.loading) {
+    donations.loading = true;
+    el("donations-note").textContent = "Loading…";
+    try {
+      const payload = await api("/donations");
+      donations.items = payload.donations || [];
+      donations.held = payload.held || 0;
+      donations.cap = payload.cap || 0;
+
+      // The searchable text is folded once here rather than on every
+      // keystroke. It is the difference between a box that keeps up with
+      // typing on a phone and one that does not.
+      for (const one of donations.items) {
+        one._hay = haystack(one);
+      }
+
+      buildStatusFilters();
+      buildCampaignFilters();
+      drawDonations();
+    } catch (error) {
+      // The module stays empty and says so, like Layouts: the reader is
+      // already past the gate, so this is one request failing and reopening
+      // the module retries it.
+      el("donations-note").textContent =
+        "Could not load the donations. Reopen the module to try again.";
+    } finally {
+      donations.loading = false;
+    }
+  }
+
+  showDonation(id);
+}
+
+/**
+ * Shows one donation, or the results when there is none to show.
+ *
+ * @param {string|null} id - Which donation, if any.
+ * @returns {void}
+ */
+function showDonation(id) {
+  const found = id && (donations.items || []).find((one) => one.id === id);
+
+  // An id that matches nothing falls back to the results and rewrites the
+  // address, for the same reason an unknown module does.
+  if (id && !found && !donations.loading) {
+    history.replaceState(null, "", "#/donations");
+  }
+
+  // Shut on the way into a record. The sheet cannot normally be open at this
+  // point — a modal dialog makes the page behind it inert — but Back and a
+  // pasted address both arrive here without going through the list, and a
+  // filter sheet left floating over a donation would be a dialog belonging
+  // to a page that is no longer on screen.
+  if (found && el("donation-filter-sheet").open) {
+    el("donation-filter-sheet").close();
+  }
+
+  el("page-donations").hidden = Boolean(found);
+  el("page-donation").hidden = !found;
+
+  if (found) {
+    drawDonationView(found);
+  }
+}
+
+/* ── The filter sheet ───────────────────────────────────────────────────── */
+
+/**
+ * Draws the three status checkboxes.
+ *
+ * From STATUS_ORDER rather than from the data, so a status that happens to
+ * have no donations in it is still offered — an admin filtering for "pending
+ * payment confirmation" and finding the box missing would reasonably
+ * conclude the portal was broken rather than that the answer was none.
+ *
+ * @returns {void}
+ */
+function buildStatusFilters() {
+  const box = el("donation-statuses");
+  box.replaceChildren();
+
+  for (const status of STATUS_ORDER) {
+    box.appendChild(checkbox("status", status, statusLabel(status)));
+  }
+}
+
+/**
+ * Draws one checkbox per campaign present in the donations held.
+ *
+ * From the data here, unlike the statuses, because the alternative is a
+ * second request for the campaigns and a list including every campaign the
+ * temple has ever run — most of which would filter to nothing.
+ *
+ * @returns {void}
+ */
+function buildCampaignFilters() {
+  const box = el("donation-campaigns");
+  box.replaceChildren();
+
+  const seen = new Map();
+  for (const one of donations.items || []) {
+    if (one.campaignId && !seen.has(one.campaignId)) {
+      seen.set(one.campaignId, campaignLabel(one));
+    }
+  }
+
+  const sorted = [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  for (const [id, label] of sorted) {
+    box.appendChild(checkbox("campaign", id, label));
+  }
+  el("donation-campaigns-empty").hidden = sorted.length > 0;
+}
+
+/**
+ * One checkbox, built as elements.
+ *
+ * A campaign's name is typed by a person and reaches this through
+ * textContent, never through markup assembled out of a string.
+ *
+ * @param {string} group - "status" or "campaign".
+ * @param {string} value - What it filters on.
+ * @param {string} label - What it is called.
+ * @returns {Element} The label wrapping the box.
+ */
+function checkbox(group, value, label) {
+  const wrap = document.createElement("label");
+  wrap.className = "check";
+
+  const input = document.createElement("input");
+  input.type = "checkbox";
+  input.dataset.group = group;
+  input.value = value;
+
+  const text = document.createElement("span");
+  text.textContent = label;
+
+  wrap.append(input, text);
+  return wrap;
+}
+
+/**
+ * Reads every control in the sheet into donations.filters.
+ *
+ * Read wholesale rather than each control updating its own field: there are
+ * nine of them, and one that forgot to would be a filter that worked
+ * everywhere except when it was the only one set.
+ *
+ * @returns {void}
+ */
+function readFilters() {
+  const ticked = (group) =>
+    [...document.querySelectorAll(`input[data-group="${group}"]:checked`)]
+      .map((box) => box.value);
+
+  donations.filters = {
+    query: el("donation-query").value,
+    donor: el("donation-donor").value,
+    recipient: el("donation-recipient").value,
+    receiptNo: el("donation-receipt").value,
+    campaigns: ticked("campaign"),
+    statuses: ticked("status"),
+    from: el("donation-from").value,
+    to: el("donation-to").value,
+    basis: document.querySelector('input[name="donation-basis"]:checked').value,
+  };
+}
+
+/**
+ * Puts every control back to showing everything.
+ *
+ * The free-text box is cleared too, although it is not counted as a filter:
+ * "Clear all" that left the search box full would be the one control on the
+ * page whose name was a lie.
+ *
+ * @returns {void}
+ */
+function clearFilters() {
+  el("donation-query").value = "";
+  for (const id of ["donation-donor", "donation-recipient", "donation-receipt",
+    "donation-from", "donation-to"]) {
+    el(id).value = "";
+  }
+  for (const box of document.querySelectorAll("#donation-statuses input, " +
+    "#donation-campaigns input")) {
+    box.checked = false;
+  }
+  document.querySelector('input[name="donation-basis"][value="submitted"]')
+    .checked = true;
+
+  readFilters();
+  donations.drawn = DRAW_LIMIT;
+  drawDonations();
+}
+
+/* ── Drawing the results ────────────────────────────────────────────────── */
+
+/**
+ * Draws whatever the filters leave, as cards or as rows.
+ *
+ * @returns {void}
+ */
+function drawDonations() {
+  const all = donations.items || [];
+  const found = search(all, donations.filters);
+  const shown = found.slice(0, donations.drawn);
+  const cards = cardsMedia.matches;
+
+  el("donations-cards").hidden = !cards;
+  el("donations-table-wrap").hidden = cards;
+
+  const target = cards ? el("donations-cards") : el("donations-rows");
+  target.replaceChildren();
+  for (const one of shown) {
+    target.appendChild(cards ? donationCard(one) : donationRow(one));
+  }
+  // The other shape is emptied rather than left holding the last draw, so a
+  // rotated phone does not show two sets of results for one instant.
+  (cards ? el("donations-rows") : el("donations-cards")).replaceChildren();
+
+  drawDonationsNote(all.length, found.length, shown.length);
+  updateFilterCount(found.length);
+
+  const more = el("donations-more");
+  more.hidden = shown.length >= found.length;
+  more.textContent = `Show ${Math.min(DRAW_LIMIT, found.length - shown.length)} more`;
+
+  el("donations-empty").hidden = found.length > 0 || donations.loading;
+  el("donations-empty").textContent = all.length ?
+    "No donation matches this search. Try fewer filters, or part of a name." :
+    "No donations yet. They appear here as donors submit the public form.";
+}
+
+/**
+ * The line above the results.
+ *
+ * It says three things, and the third is the one that must never be left
+ * out: how many are held, how many matched, and — when the server capped
+ * what it sent — that the search did not run over everything.
+ *
+ * @param {number} held - How many donations are loaded.
+ * @param {number} found - How many the filters left.
+ * @param {number} shown - How many are drawn.
+ * @returns {void}
+ */
+function drawDonationsNote(held, found, shown) {
+  if (!held) {
+    el("donations-note").textContent = "";
+    return;
+  }
+
+  const one = (n, word) => `${n.toLocaleString()} ${word}${n === 1 ? "" : "s"}`;
+  let note = found === held ?
+    one(held, "donation") :
+    `${found.toLocaleString()} of ${one(held, "donation")}`;
+  if (shown < found) {
+    note += `, showing ${shown.toLocaleString()}`;
+  }
+  if (donations.held) {
+    note += ` — only the first ${donations.cap.toLocaleString()} are loaded, ` +
+      `so ${donations.held.toLocaleString()} more are not being searched`;
+  }
+  el("donations-note").textContent = note;
+}
+
+/**
+ * Puts the number of set filters on the button and in the sheet.
+ *
+ * @param {number} found - How many donations matched.
+ * @returns {void}
+ */
+function updateFilterCount(found) {
+  const count = activeCount(donations.filters);
+  const badge = el("donation-filter-count");
+  badge.textContent = String(count);
+  badge.hidden = count === 0;
+  el("donation-filters").setAttribute(
+    "aria-label",
+    count ? `Filters, ${count} set` : "Filters"
+  );
+
+  el("donation-filter-count-note").textContent =
+    `${found.toLocaleString()} matching`;
+
+  // The date boxes say nothing about which date they mean once the sheet is
+  // scrolled past the toggle, so the note under them repeats it.
+  el("donation-basis-note").textContent =
+    donations.filters.basis === "paid" ?
+      "Filtering on the date each donation was paid. Donations that are not " +
+        "yet paid have no such date, so none of them will be listed." :
+      "Filtering on the date each donation was submitted.";
+}
+
+/**
+ * One result, as a card.
+ *
+ * @param {Object} one - A donation.
+ * @returns {Element} The card.
+ */
+function donationCard(one) {
+  const card = el("tpl-donation-card").content.firstElementChild.cloneNode(true);
+  const find = (selector) => card.querySelector(selector);
+
+  card.dataset.donation = one.id;
+  find(".dcard-donor").textContent = one.donor || "No name recorded";
+  find(".dcard-amount").textContent = amountLabel(one.amount);
+  find(".dcard-meta").textContent =
+    `${dateLabel(displayDate(one))} · ${campaignLabel(one)}`;
+
+  const forWhom = recipientsLabel(one.recipients);
+  find(".dcard-for").textContent = forWhom ? `For ${forWhom}` : "";
+  find(".dcard-for").hidden = !forWhom;
+
+  fillStatus(find(".dstatus"), one.status);
+  find(".receipt-no").textContent = one.receiptNo || "";
+
+  return card;
+}
+
+/**
+ * The same result, as a table row.
+ *
+ * @param {Object} one - A donation.
+ * @returns {Element} The row.
+ */
+function donationRow(one) {
+  const row = el("tpl-donation-row").content.firstElementChild.cloneNode(true);
+  const find = (selector) => row.querySelector(selector);
+
+  row.dataset.donation = one.id;
+  find(".drow-date").textContent = dateLabel(displayDate(one));
+  find(".drow-donor").textContent = one.donor || "No name recorded";
+  find(".drow-amount").textContent = amountLabel(one.amount);
+  find(".drow-campaign").textContent = campaignLabel(one);
+  // More of them than a card shows, because there is a column's width for it.
+  find(".drow-recipients").textContent = recipientsLabel(one.recipients, 3) || "—";
+  fillStatus(find(".dstatus"), one.status);
+  find(".drow-receipt").textContent = one.receiptNo || "—";
+
+  return row;
+}
+
+/**
+ * Colours and words one status pill.
+ *
+ * The dot is reinforcement; the word beside it is the message. Nothing here
+ * is carried by colour alone.
+ *
+ * @param {Element} node - A .dstatus.
+ * @param {string} status - The stored status.
+ * @returns {void}
+ */
+function fillStatus(node, status) {
+  node.classList.remove("is-paid", "is-confirming", "is-unpaid");
+  node.classList.add({
+    "paid": "is-paid",
+    "pending-confirmation": "is-confirming",
+    "pending-payment": "is-unpaid",
+  }[status] || "is-unpaid");
+  node.querySelector(".dstatus-text").textContent = statusLabel(status);
+}
+
+/* ── One donation, opened ───────────────────────────────────────────────── */
+
+/**
+ * Draws the detail page.
+ *
+ * This is the only place the donor's phone number appears. It is not on the
+ * cards and not in the search index: a result list is read in a corridor, and
+ * a number is wanted once, by somebody who has already found the record.
+ *
+ * @param {Object} one - The donation.
+ * @returns {void}
+ */
+function drawDonationView(one) {
+  el("dview-donor").textContent = one.donor || "No name recorded";
+  el("dview-amount").textContent = amountLabel(one.amount);
+  fillStatus(el("dview-status"), one.status);
+
+  const receipt = el("dview-receipt");
+  receipt.textContent = one.receiptNo || "No receipt number";
+  receipt.classList.toggle("is-missing", !one.receiptNo);
+
+  const facts = el("dview-facts");
+  facts.replaceChildren();
+  const rows = [
+    ["Campaign", campaignLabel(one)],
+    ["Submitted", dateLabel(one.createdAt, true)],
+    // Drawn for every donation, paid or not, because a blank beside "Paid"
+    // is itself the answer to the question being asked.
+    ["Paid", one.paidAt ? dateLabel(one.paidAt, true) : "—"],
+    ["Payment method", payLabel(one.payBy)],
+    ["Phone", one.phone || "—"],
+    ["May be contacted by", contactLabel(one.contact)],
+    ["PayNow reference", one.reference || "—"],
+  ];
+  for (const [term, value] of rows) {
+    const wrap = document.createElement("div");
+    const dt = document.createElement("dt");
+    dt.textContent = term;
+    const dd = document.createElement("dd");
+    dd.textContent = value;
+    wrap.append(dt, dd);
+    facts.appendChild(wrap);
+  }
+
+  const names = (one.recipients || []).filter(Boolean);
+  const list = el("dview-recipients");
+  list.replaceChildren();
+  for (const name of names) {
+    const item = document.createElement("li");
+    item.textContent = name;
+    list.appendChild(item);
+  }
+  el("dview-recipients-block").hidden = names.length === 0;
+
+  el("dview-wishes").textContent = one.wishes || "";
+  el("dview-wishes-block").hidden = !one.wishes;
+
+  document.title = `${one.donor || "Donation"} — ABSS DMS`;
+}
+
+/**
+ * Opens one donation, pushing rather than replacing.
+ *
+ * Going into one record out of a thousand is a step somebody means to take,
+ * and Back is how anybody expects to leave it — the same reasoning as
+ * opening a layout.
+ *
+ * @param {string} id - Which donation.
+ * @returns {void}
+ */
+function openDonation(id) {
+  history.pushState(null, "", `#/donations/${id}`);
+  showDonation(id);
+}
+
 /* ── Wiring ─────────────────────────────────────────────────────────────── */
 
 // One listener on the list rather than one per item: the modules are markup,
@@ -1452,6 +1961,90 @@ el("layout-fields").addEventListener("submit", (event) => {
   // submitLayout(), once there is something to close on.
   event.preventDefault();
   submitLayout();
+});
+
+/* ── Wiring the donations module ────────────────────────────────────────── */
+
+/**
+ * Re-reads the controls and redraws.
+ *
+ * The drawn count goes back to its first page whenever a filter changes:
+ * having pressed Show more four times and then narrowed the search, an admin
+ * is looking at a different list, and keeping the old depth would leave them
+ * scrolled into the middle of it.
+ *
+ * @returns {void}
+ */
+function refilterDonations() {
+  readFilters();
+  donations.drawn = DRAW_LIMIT;
+  drawDonations();
+}
+
+// input rather than change, so the list narrows as the box is typed into.
+// This is the whole point of holding the records in memory.
+el("donation-query").addEventListener("input", refilterDonations);
+
+el("donation-filters").addEventListener("click", () => {
+  el("donation-filter-sheet").showModal();
+});
+
+for (const id of ["donation-filter-close", "donation-filter-done"]) {
+  el(id).addEventListener("click", () => el("donation-filter-sheet").close());
+}
+
+el("donation-filter-clear").addEventListener("click", clearFilters);
+
+// One pair of listeners on the sheet rather than one per control: the
+// campaign boxes are built at load time and would otherwise each need
+// wiring, and a tenth filter added later needs none.
+for (const event of ["input", "change"]) {
+  el("donation-filter-sheet").addEventListener(event, refilterDonations);
+}
+
+el("donations-more").addEventListener("click", () => {
+  donations.drawn += DRAW_LIMIT;
+  drawDonations();
+});
+
+// One listener per container rather than one per result: at sixty cards that
+// is sixty handlers saved, and a card drawn by the next keystroke needs no
+// wiring of its own.
+for (const id of ["donations-cards", "donations-rows"]) {
+  el(id).addEventListener("click", (event) => {
+    const hit = event.target.closest("[data-donation]");
+    if (hit) {
+      openDonation(hit.dataset.donation);
+    }
+  });
+}
+
+// The cards are buttons and get this for nothing; a table row does not, so
+// the keyboard has to be given the same way in.
+el("donations-rows").addEventListener("keydown", (event) => {
+  if (event.key !== "Enter" && event.key !== " ") {
+    return;
+  }
+  const row = event.target.closest("[data-donation]");
+  if (row) {
+    event.preventDefault();
+    openDonation(row.dataset.donation);
+  }
+});
+
+el("dview-back").addEventListener("click", () => {
+  // Back rather than a replace, so leaving a donation undoes the push that
+  // opened it instead of adding a second entry pointing at the list.
+  history.back();
+});
+
+// A phone turned on its side crosses the breakpoint, and the results have to
+// change shape with it. Only a redraw — the filters and the search are
+// untouched, so nothing the admin typed is lost in the rotation.
+cardsMedia.addEventListener("change", () => {
+  if (donations.items) {
+    drawDonations();
+  }
 });
 
 boot();
